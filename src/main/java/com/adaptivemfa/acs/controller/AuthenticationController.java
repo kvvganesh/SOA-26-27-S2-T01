@@ -18,7 +18,10 @@ public class AuthenticationController {
     public AuthenticationResponse login(@RequestBody LoginRequest request){
         return authenticationService.authenticate(
                 request.getUsername(),
-                request.getPassword()
+                request.getPassword(),
+                request.getDeviceId(),
+                request.getLocation()
+
         );
     }
 }

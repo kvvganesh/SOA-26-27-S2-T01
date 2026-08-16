@@ -11,10 +11,10 @@ public class AuthenticationResponse {
     public void setStatus(String status) {
         this.status = status;
     }
-    public String getRisklevel() {
+    public String getRiskLevel() {
         return risklevel;
     }
-    public void setRisklevel(String risklevel) {
+    public void setRiskLevel(String risklevel) {
         this.risklevel = risklevel;
     }
     public String getMessage() {
