@@ -6,6 +6,11 @@ import org.springframework.stereotype.Service;
 public class LocationRiskService {
 
     public boolean isTrustedLocation(String location){
-        return "Chennai".equalsIgnoreCase(location);
+        System.out.println("location received: " + location);
+        if(location==null){
+            return false;
+        }
+
+        return "Chennai".equalsIgnoreCase(location.trim());
     }
 }

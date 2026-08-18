@@ -13,89 +13,212 @@ public class AuthenticationService {
     private final DeviceTrustService deviceTrustService;
     private final LocationRiskService locationRiskService;
     private final AccessDecisionService accessDecisionService;
+    private final MFAService mfaService;
+    private final LoginBehaviorService loginBehaviorService;
+    private final AuditLogService auditLogService;
+
     public AuthenticationService(
             RiskAssessmentService riskAssessmentService,
             FailedAttemptTracker failedAttemptTracker,
             DeviceTrustService deviceTrustService,
             LocationRiskService locationRiskService,
-            AccessDecisionService accessDecisionService) {
+            AccessDecisionService accessDecisionService,
+            MFAService mfaService,
+            LoginBehaviorService loginBehaviorService,
+            AuditLogService auditLogService) {
 
         this.riskAssessmentService = riskAssessmentService;
         this.failedAttemptTracker = failedAttemptTracker;
         this.deviceTrustService = deviceTrustService;
         this.locationRiskService = locationRiskService;
         this.accessDecisionService = accessDecisionService;
+        this.mfaService = mfaService;
+        this.loginBehaviorService = loginBehaviorService;
+        this.auditLogService = auditLogService;
     }
 
     public AuthenticationResponse authenticate(
             String username,
             String password,
             String deviceId,
-            String location) {
+            String location,
+            int loginHour) {
 
         AuthenticationResponse response = new AuthenticationResponse();
 
-        boolean trustedDevice=deviceTrustService.isTrusted(deviceId);
+        boolean trustedDevice =
+                deviceTrustService.isTrusted(deviceId);
 
-        boolean trustedLocation=locationRiskService.isTrustedLocation(location);
+        boolean trustedLocation =
+                locationRiskService.isTrustedLocation(location);
 
+        boolean unusualLoginTime =
+                loginBehaviorService.isUnusualLoginTime(loginHour);
+
+        /*
+         * Correct username and password
+         */
         if (username.equals("admin") && password.equals("admin123")) {
 
             // Successful login → reset failed attempts
             failedAttemptTracker.resetAttempts(username);
 
             RiskAssessment assessment =
-                    riskAssessmentService.assessRisk(0,trustedDevice,trustedLocation);
-            String accessDecision= accessDecisionService.decideAccess(assessment.getRisklevel());
-
-            if(accessDecision.equals("ALLOW")) {
-                response.setStatus("AUTHENTICATED");
-                response.setMessage("Authentication Successful");
-            }
-
-            else if(accessDecision.equals("REQUIRE_MFA")){
-                response.setStatus("MFA_REQUIRED");
-                response.setMessage("Additional authentication required");
-            }
-            else{
-                response.setStatus("ACCESS_DENIED");
-                response.setMessage("High risk login blocked");
-            }
-            response.setRiskLevel(assessment.getRisklevel());
-
-
-        } else {
-
-            // Wrong password → increase failed attempts
-            failedAttemptTracker.incrementAttempts(username);
-
-            // Get the NEW number of failed attempts
-            int failedAttempts =
-                    failedAttemptTracker.getAttempts(username);
-
-            // Calculate risk using the new count
-            RiskAssessment assessment =
-                    riskAssessmentService.assessRisk(failedAttempts,trustedDevice,trustedLocation);
+                    riskAssessmentService.assessRisk(
+                            0,
+                            trustedDevice,
+                            trustedLocation,
+                            unusualLoginTime
+                    );
 
             String accessDecision =
                     accessDecisionService.decideAccess(
-                            assessment.getRisklevel());
+                            assessment.getRisklevel()
+                    );
 
-            if (accessDecision.equals("REQUIRE_MFA")) {
+            /*
+             * LOW → Authentication successful
+             * MEDIUM → MFA required
+             * HIGH → Access denied
+             */
+
+            if (accessDecision.equals("ALLOW")) {
+
+                response.setStatus("AUTHENTICATED");
+                response.setMessage("Authentication Successful");
+                response.setRiskLevel(assessment.getRisklevel());
+
+                auditLogService.log(
+                        username,
+                        deviceId,
+                        location,
+                        assessment.getScore(),
+                        assessment.getRisklevel(),
+                        "AUTHENTICATED"
+                );
+
+            } else if (accessDecision.equals("MFA_REQUIRED")) {
+
+                String otp = mfaService.generateOtp(username);
 
                 response.setStatus("MFA_REQUIRED");
-                response.setMessage("Additional authentication required");
+                response.setMessage(
+                        "Additional authentication required. OTP: " + otp
+                );
+                response.setRiskLevel(assessment.getRisklevel());
+
+                auditLogService.log(
+                        username,
+                        deviceId,
+                        location,
+                        assessment.getScore(),
+                        assessment.getRisklevel(),
+                        "MFA_REQUIRED"
+                );
 
             } else {
 
                 response.setStatus("ACCESS DENIED");
-                response.setMessage("Invalid username or password");
+                response.setMessage(
+                        "Access denied due to high risk"
+                );
+                response.setRiskLevel(assessment.getRisklevel());
+
+                auditLogService.log(
+                        username,
+                        deviceId,
+                        location,
+                        assessment.getScore(),
+                        assessment.getRisklevel(),
+                        "ACCESS DENIED"
+                );
             }
 
-            response.setRiskLevel(assessment.getRisklevel());
+        } else {
+
+            /*
+             * Wrong username/password
+             */
+
+            failedAttemptTracker.incrementAttempts(username);
+
+            // Get NEW failed-attempt count
+            int failedAttempts =
+                    failedAttemptTracker.getAttempts(username);
+
+            RiskAssessment assessment =
+                    riskAssessmentService.assessRisk(
+                            failedAttempts,
+                            trustedDevice,
+                            trustedLocation,
+                            unusualLoginTime
+                    );
+
+            String accessDecision =
+                    accessDecisionService.decideAccess(
+                            assessment.getRisklevel()
+                    );
+
+            /*
+             * Wrong password
+             */
+
+            if (accessDecision.equals("MFA_REQUIRED")) {
+
+                String otp = mfaService.generateOtp(username);
+
+                response.setStatus("MFA_REQUIRED");
+                response.setMessage(
+                        "Additional authentication required. OTP: " + otp
+                );
+                response.setRiskLevel(assessment.getRisklevel());
+
+                auditLogService.log(
+                        username,
+                        deviceId,
+                        location,
+                        assessment.getScore(),
+                        assessment.getRisklevel(),
+                        "MFA_REQUIRED"
+                );
+
+            } else {
+
+                response.setStatus("ACCESS DENIED");
+                response.setMessage(
+                        "Invalid username or password"
+                );
+                response.setRiskLevel(assessment.getRisklevel());
+
+                auditLogService.log(
+                        username,
+                        deviceId,
+                        location,
+                        assessment.getScore(),
+                        assessment.getRisklevel(),
+                        "ACCESS DENIED"
+                );
+            }
         }
 
         return response;
     }
+    public AuthenticationResponse verifyMFA(String username, String otp) {
 
+        AuthenticationResponse response = new AuthenticationResponse();
+
+        boolean verified = mfaService.verifyOTP(username, otp);
+
+        if (verified) {
+            response.setStatus("AUTHENTICATED");
+            response.setMessage("MFA verification successful");
+            response.setRiskLevel("LOW");
+        } else {
+            response.setStatus("ACCESS DENIED");
+            response.setMessage("Invalid or expired OTP");
+            response.setRiskLevel("HIGH");
+        }
+
+        return response;
     }
+}

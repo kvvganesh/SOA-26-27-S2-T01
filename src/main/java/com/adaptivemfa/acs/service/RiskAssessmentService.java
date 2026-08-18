@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class RiskAssessmentService {
 
-    public RiskAssessment assessRisk(int failedAttempts, boolean trustedDevice, boolean trustedLocation) {
+    public RiskAssessment assessRisk(int failedAttempts, boolean trustedDevice, boolean trustedLocation, boolean unusualLoginTime) {
 
         RiskAssessment assessment = new RiskAssessment();
 
@@ -26,6 +26,11 @@ public class RiskAssessmentService {
             score+=30;
         }
         if(!trustedLocation) {
+            score+=20;
+        }
+
+        //unusual login time risk
+        if(unusualLoginTime) {
             score+=20;
         }
 
