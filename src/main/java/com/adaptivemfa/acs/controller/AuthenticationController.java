@@ -4,6 +4,9 @@ import com.adaptivemfa.acs.model.AuthenticationResponse;
 import com.adaptivemfa.acs.model.LoginRequest;
 import com.adaptivemfa.acs.model.MFARequest;
 import com.adaptivemfa.acs.service.AuthenticationService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,8 +19,8 @@ public class AuthenticationController {
     }
 
     @PostMapping("/auth/login")
-    public AuthenticationResponse login(@RequestBody LoginRequest request){
-        return authenticationService.authenticate(
+    public ResponseEntity<AuthenticationResponse> login(@Valid @RequestBody LoginRequest request){
+        AuthenticationResponse response=authenticationService.authenticate(
                 request.getUsername(),
                 request.getPassword(),
                 request.getDeviceId(),
@@ -25,14 +28,32 @@ public class AuthenticationController {
                 request.getLoginHour()
 
         );
+       if(response.getStatus().equals("AUTHENTICATED")){
+           return ResponseEntity.ok(response);
+       }
+       else if(response.getStatus().equals("ACCESS DENIED")){
+          return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+       }
+       else if(response.getStatus().equals("MFA_REQUIRED")){
+           return ResponseEntity.ok(response);
+       }
+       return ResponseEntity.ok(response);
+
     }
 
     @PostMapping("/auth/verify-mfa")
-    public AuthenticationResponse verifyMFA(@RequestBody MFARequest request){
-        return authenticationService.verifyMFA(
+    public ResponseEntity<AuthenticationResponse> verifyMFA(@Valid @RequestBody MFARequest request){
+        AuthenticationResponse response=authenticationService.verifyMFA(
                 request.getUsername(),
                 request.getOtp()
         );
+
+        if("AUTHENTICATED".equals(response.getStatus())){
+            return ResponseEntity.ok(response);
+        }
+        else{
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        }
 
     }
 

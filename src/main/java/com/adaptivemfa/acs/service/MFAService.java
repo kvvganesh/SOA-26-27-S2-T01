@@ -1,5 +1,6 @@
 package com.adaptivemfa.acs.service;
 
+import com.adaptivemfa.acs.exception.MFAException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -50,12 +51,12 @@ public class MFAService {
             return false;
         }
 
-        // Check maximum attempts
+        // Check maximum attempts before processing this attempt
         int attempts = attemptStore.getOrDefault(username, 0);
 
         if (attempts >= 3) {
             removeOTP(username);
-            return false;
+            throw new MFAException("Maximum MFA attempts exceeded");
         }
 
         // Correct OTP
@@ -68,9 +69,10 @@ public class MFAService {
         attempts++;
         attemptStore.put(username, attempts);
 
-        // Three wrong attempts → invalidate OTP
+        // Third wrong attempt → invalidate OTP and throw exception
         if (attempts >= 3) {
             removeOTP(username);
+            throw new MFAException("Maximum MFA attempts exceeded");
         }
 
         return false;

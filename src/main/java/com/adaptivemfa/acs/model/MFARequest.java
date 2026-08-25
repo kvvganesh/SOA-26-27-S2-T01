@@ -1,8 +1,12 @@
 package com.adaptivemfa.acs.model;
 
-public class MFARequest {
+import jakarta.validation.constraints.NotBlank;
 
+public class MFARequest {
+    @NotBlank
     private String username;
+
+    @NotBlank
     private String otp;
 
     public String getOtp() {

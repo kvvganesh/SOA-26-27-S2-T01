@@ -1,11 +1,25 @@
 package com.adaptivemfa.acs.model;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+
 public class LoginRequest {
 
+    @NotBlank
     private String username;
+
+    @NotBlank
     private String password;
+
+    @NotBlank
     private String deviceId;
+
+    @NotBlank
     private String location;
+
+    @Min(0)
+    @Max(23)
     private int loginHour;
 
     public String getUsername() {

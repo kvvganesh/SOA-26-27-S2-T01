@@ -1,45 +1,47 @@
 package com.adaptivemfa.acs.model;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
 import java.time.LocalDateTime;
 
+@Entity
+@Table(name = "audit_logs")
 public class AuditLog {
-    private LocalDateTime timestamp;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
     private String username;
+
     private String deviceId;
+
     private String location;
+
+    private int failedAttempts;
+
     private int riskScore;
+
     private String riskLevel;
+
     private String decision;
 
-    public AuditLog(){
+    private LocalDateTime timestamp;
 
-    }
-    public AuditLog(
-            LocalDateTime timestamp,
-            String username,
-            String deviceId,
-            String location,
-            int riskScore,
-            String riskLevel,
-            String decision
-    ){
-        this.timestamp = timestamp;
-        this.username = username;
-        this.deviceId = deviceId;
-        this.location = location;
-        this.riskScore = riskScore;
-        this.riskLevel = riskLevel;
-        this.decision = decision;
-    }
-    public LocalDateTime getTimestamp() {
-        return timestamp;
-    }
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
+    public Long getId() {
+        return id;
     }
 
     public String getUsername() {
         return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getDeviceId() {
@@ -58,8 +60,12 @@ public class AuditLog {
         this.location = location;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public int getFailedAttempts() {
+        return failedAttempts;
+    }
+
+    public void setFailedAttempts(int failedAttempts) {
+        this.failedAttempts = failedAttempts;
     }
 
     public int getRiskScore() {
@@ -84,5 +90,13 @@ public class AuditLog {
 
     public void setDecision(String decision) {
         this.decision = decision;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(LocalDateTime timestamp) {
+        this.timestamp = timestamp;
     }
 }

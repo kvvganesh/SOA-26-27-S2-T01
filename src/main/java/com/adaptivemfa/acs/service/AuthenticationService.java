@@ -5,6 +5,8 @@ import com.adaptivemfa.acs.model.RiskAssessment;
 import com.adaptivemfa.acs.util.FailedAttemptTracker;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
+
 @Service
 public class AuthenticationService {
 
@@ -63,9 +65,12 @@ public class AuthenticationService {
             // Successful login → reset failed attempts
             failedAttemptTracker.resetAttempts(username);
 
+            // After successful authentication, failed attempts = 0
+            int failedAttempts = 0;
+
             RiskAssessment assessment =
                     riskAssessmentService.assessRisk(
-                            0,
+                            failedAttempts,
                             trustedDevice,
                             trustedLocation,
                             unusualLoginTime
@@ -92,6 +97,7 @@ public class AuthenticationService {
                         username,
                         deviceId,
                         location,
+                        failedAttempts,
                         assessment.getScore(),
                         assessment.getRisklevel(),
                         "AUTHENTICATED"
@@ -111,6 +117,7 @@ public class AuthenticationService {
                         username,
                         deviceId,
                         location,
+                        failedAttempts,
                         assessment.getScore(),
                         assessment.getRisklevel(),
                         "MFA_REQUIRED"
@@ -128,6 +135,7 @@ public class AuthenticationService {
                         username,
                         deviceId,
                         location,
+                        failedAttempts,
                         assessment.getScore(),
                         assessment.getRisklevel(),
                         "ACCESS DENIED"
@@ -177,6 +185,7 @@ public class AuthenticationService {
                         username,
                         deviceId,
                         location,
+                        failedAttempts,
                         assessment.getScore(),
                         assessment.getRisklevel(),
                         "MFA_REQUIRED"
@@ -194,6 +203,7 @@ public class AuthenticationService {
                         username,
                         deviceId,
                         location,
+                        failedAttempts,
                         assessment.getScore(),
                         assessment.getRisklevel(),
                         "ACCESS DENIED"
@@ -203,20 +213,51 @@ public class AuthenticationService {
 
         return response;
     }
-    public AuthenticationResponse verifyMFA(String username, String otp) {
 
-        AuthenticationResponse response = new AuthenticationResponse();
+    public AuthenticationResponse verifyMFA(
+            String username,
+            String otp) {
 
-        boolean verified = mfaService.verifyOTP(username, otp);
+        AuthenticationResponse response =
+                new AuthenticationResponse();
+
+        boolean verified =
+                mfaService.verifyOTP(username, otp);
 
         if (verified) {
+
             response.setStatus("AUTHENTICATED");
-            response.setMessage("MFA verification successful");
+            response.setMessage(
+                    "MFA verification successful"
+            );
             response.setRiskLevel("LOW");
+            auditLogService.log(
+                    username,
+                    "MFA",
+                    "MFA",
+                    0,
+                    0,
+                    "LOW",
+                    "MFA_AUTHENTICATED"
+            );
+
         } else {
+
             response.setStatus("ACCESS DENIED");
-            response.setMessage("Invalid or expired OTP");
+            response.setMessage(
+                    "Invalid or expired OTP"
+            );
             response.setRiskLevel("HIGH");
+
+            auditLogService.log(
+                    username,
+                    "MFA",
+                    "MFA",
+                    0,
+                    0,
+                    "HIGH",
+                    "MFA_FAILED"
+            );
         }
 
         return response;
