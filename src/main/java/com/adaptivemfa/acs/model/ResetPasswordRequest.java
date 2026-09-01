@@ -4,19 +4,25 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-public class ChangePasswordRequest {
-    @NotBlank(message="Username is required")
-    private String username;
-    @NotBlank(message="Password is required")
-    private String currentPassword;
+public class ResetPasswordRequest {
 
-    @NotBlank(message="new password is required")
-    @Size(min=8, message="New Password must contain at least 8 characters")
-   @Pattern(
+    @NotBlank(message = "Username is required")
+    private String username;
+
+    @NotBlank(message= "OTP is required")
+    private String otp;
+
+    @NotBlank(message="New password is required")
+    @Size(
+            min=8,
+            message="New password must contain at least 8 characters"
+    )
+    @Pattern(
             regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&]).+$",
             message = "New password must contain uppercase, lowercase, number and special character"
     )
     private String newPassword;
+
 
     public String getUsername() {
         return username;
@@ -24,11 +30,12 @@ public class ChangePasswordRequest {
     public void setUsername(String username) {
         this.username = username;
     }
-    public String getCurrentPassword() {
-        return currentPassword;
+
+    public String getOtp() {
+        return otp;
     }
-    public void setCurrentPassword(String currentPassword) {
-        this.currentPassword = currentPassword;
+    public void setOtp(String otp) {
+        this.otp = otp;
     }
     public String getNewPassword() {
         return newPassword;

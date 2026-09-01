@@ -28,7 +28,31 @@ public class AccountSecurityService {
             return false;
         }
 
-        return account.get().islocked();
+        AccountSecurity security = account.get();
+
+        // Account is not locked
+        if (!security.islocked()) {
+            return false;
+        }
+
+        // Account is locked — check when it was locked
+        LocalDateTime lockedAt = security.getlockedAt();
+
+        if (lockedAt != null &&
+                LocalDateTime.now().isAfter(lockedAt.plusHours(12))) {
+
+            // Automatically unlock after 12 hours
+            security.setlocked(false);
+            security.setfailedAttempts(0);
+            security.setlockedAt(null);
+
+            accountSecurityRepository.save(security);
+
+            return false;
+        }
+
+        // Still within the 12-hour lock period
+        return true;
     }
 
 
@@ -58,8 +82,8 @@ public class AccountSecurityService {
         security.setfailedAttempts(attempts);
 
 
-        // Lock account after 5 failed attempts
-        if (attempts >= 5) {
+        // Lock account after 6 failed attempts
+        if (attempts >= 6) {
 
             security.setlocked(true);
             security.setlockedAt(LocalDateTime.now());
@@ -86,5 +110,22 @@ public class AccountSecurityService {
 
             accountSecurityRepository.save(security);
         }
+    }
+
+    public void unlockAccount(String username) {
+        Optional<AccountSecurity> account =
+                accountSecurityRepository.findById(username);
+
+        if(account.isEmpty()){
+            throw new RuntimeException("Account doesn't exist");
+
+        }
+        AccountSecurity security = account.get();
+
+        security.setfailedAttempts(0);
+        security.setlocked(false);
+        security.setlockedAt(null);
+
+        accountSecurityRepository.save(security);
     }
 }

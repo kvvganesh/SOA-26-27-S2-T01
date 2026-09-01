@@ -15,10 +15,12 @@ public class UserService {
   private final PasswordService passwordService;
   private final AccountSecurityRepository accountSecurityRepository;
   private final AccountSecurityService accountSecurityService;
-  public UserService(UserRepository userRepository, PasswordService passwordService, AccountSecurityRepository accountSecurityRepository,  AccountSecurityService accountSecurityService) {
+  private final MFAService mfaService;
+  public UserService(UserRepository userRepository, PasswordService passwordService, AccountSecurityRepository accountSecurityRepository,  AccountSecurityService accountSecurityService, MFAService mfaService) {
       this.userRepository = userRepository;
       this.passwordService = passwordService;
       this.accountSecurityRepository = accountSecurityRepository;
+      this.mfaService = mfaService;
       this.accountSecurityService = accountSecurityService;
   }
 
@@ -27,6 +29,7 @@ public class UserService {
       User user = new User();
       user.setUsername(username);
       user.setPassword(passwordService.hashPassword(password));
+      user.setRole("USER");
       userRepository.save(user);
 
       AccountSecurity security = new AccountSecurity();
@@ -65,5 +68,54 @@ public class UserService {
       user.setPassword(passwordService.hashPassword(newPassword));
       userRepository.save(user);
       accountSecurityService.resetFailedAttempts(username);
+  }
+
+  public String generatePasswordResetOtp(String username){
+      userRepository.findById(username)
+              .orElseThrow(()->
+                      new RuntimeException("User not found"));
+      return mfaService.generateOtp(username);
+  }
+
+  public void resetPassword(
+          String username,
+          String otp,
+          String newPassword
+  ){
+      boolean verified= mfaService.verifyOTP(username, otp);
+      if(!verified){
+          throw new RuntimeException("Invalid OTP or expired OTP");
+      }
+
+      User user= userRepository.findById(username)
+              .orElseThrow(()->
+                      new RuntimeException("User not found"));
+
+      user.setPassword(passwordService.hashPassword(newPassword));
+      userRepository.save(user);
+      accountSecurityService.resetFailedAttempts(username);
+
+
+  }
+
+  @Transactional
+    public void createAdmin(String username, String password){
+      if(userRepository.existsById(username)){
+          throw new RuntimeException("Username already exists");
+      }
+      User user = new User();
+      user.setUsername(username);
+      user.setPassword(passwordService.hashPassword(password));
+      user.setRole("ADMIN");
+
+      userRepository.save(user);
+
+      AccountSecurity security = new AccountSecurity();
+
+      security.setusername(username);
+      security.setfailedAttempts(0);
+      security.setlocked(false);
+      security.setlockedAt(null);
+      accountSecurityRepository.save(security);
   }
 }

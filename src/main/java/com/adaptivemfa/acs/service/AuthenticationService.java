@@ -81,7 +81,6 @@ public class AuthenticationService {
             int failedAttempts = 0;
 
             accountSecurityService.resetFailedAttempts(username);
-            accountSecurityService.resetFailedAttempts(username);
             RiskAssessment assessment =
                     riskAssessmentService.assessRisk(
                             failedAttempts,

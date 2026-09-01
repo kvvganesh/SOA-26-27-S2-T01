@@ -3,7 +3,6 @@ package com.adaptivemfa.acs.controller;
 import com.adaptivemfa.acs.model.AuditLog;
 import com.adaptivemfa.acs.model.AuditStatistics;
 import com.adaptivemfa.acs.service.AuditLogService;
-import org.springframework.data.querydsl.QPageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

@@ -1,9 +1,6 @@
 package com.adaptivemfa.acs.controller;
 
-import com.adaptivemfa.acs.model.AuthenticationResponse;
-import com.adaptivemfa.acs.model.ChangePasswordRequest;
-import com.adaptivemfa.acs.model.LoginRequest;
-import com.adaptivemfa.acs.model.MFARequest;
+import com.adaptivemfa.acs.model.*;
 import com.adaptivemfa.acs.service.AuthenticationService;
 import com.adaptivemfa.acs.service.UserService;
 import jakarta.validation.Valid;
@@ -79,7 +76,29 @@ public class AuthenticationController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<AuthenticationResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request){
+        String otp= userService.generatePasswordResetOtp(request.getUsername());
+        AuthenticationResponse response=new AuthenticationResponse();
+        response.setStatus("OTP_GENERATED");
+        response.setMessage("Password reset OTP: "+otp);
+        response.setRiskLevel("LOW");
+        return ResponseEntity.ok(response);
+    }
 
+    @PostMapping("/reset-password")
+    public ResponseEntity<AuthenticationResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request){
+        userService.resetPassword(
+                request.getUsername(),
+                request.getOtp(),
+                request.getNewPassword()
+        );
+        AuthenticationResponse response=new AuthenticationResponse();
 
+        response.setStatus("PASSWORD_RESET");
+        response.setMessage("Password reset successfully");
+        response.setRiskLevel("LOW");
+        return ResponseEntity.ok(response);
+    }
 
 }
