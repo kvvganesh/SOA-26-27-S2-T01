@@ -1,14 +1,15 @@
 package com.adaptivemfa.acs.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
-@Entity
-@Table(name="app_users")
-public class User {
-    @Id
+public class RegisterRequest {
+    @NotBlank(message = "username must not be blank")
     private String username;
+
+    @NotBlank(message = "Password must not be blank")
+    @Size(min=8, message="Password must contain at least 8 characters")
+
     private String password;
 
     public String getUsername() {

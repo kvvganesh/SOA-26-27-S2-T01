@@ -84,4 +84,19 @@ public class MFAService {
         expiryStore.remove(username);
         attemptStore.remove(username);
     }
+
+    public boolean isMFARequired(String username){
+        String storedOTP=otpStore.get(username);
+        LocalDateTime expiryTime=expiryStore.get(username);
+
+        if(storedOTP==null || expiryTime==null){
+            return false;
+        }
+        if (LocalDateTime.now().isAfter(expiryTime)) {
+            removeOTP(username);
+            return false;
+        }
+        return true;
+    }
+
 }

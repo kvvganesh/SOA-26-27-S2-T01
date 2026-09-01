@@ -18,6 +18,8 @@ public class AuthenticationService {
     private final MFAService mfaService;
     private final LoginBehaviorService loginBehaviorService;
     private final AuditLogService auditLogService;
+    private final AccountSecurityService accountSecurityService;
+    private final UserService userService;
 
     public AuthenticationService(
             RiskAssessmentService riskAssessmentService,
@@ -27,7 +29,9 @@ public class AuthenticationService {
             AccessDecisionService accessDecisionService,
             MFAService mfaService,
             LoginBehaviorService loginBehaviorService,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            AccountSecurityService accountSecurityService,
+            UserService userService) {
 
         this.riskAssessmentService = riskAssessmentService;
         this.failedAttemptTracker = failedAttemptTracker;
@@ -37,7 +41,10 @@ public class AuthenticationService {
         this.mfaService = mfaService;
         this.loginBehaviorService = loginBehaviorService;
         this.auditLogService = auditLogService;
+        this.accountSecurityService = accountSecurityService;
+        this.userService = userService;
     }
+
 
     public AuthenticationResponse authenticate(
             String username,
@@ -47,7 +54,12 @@ public class AuthenticationService {
             int loginHour) {
 
         AuthenticationResponse response = new AuthenticationResponse();
-
+        if(accountSecurityService.isAccountLocked(username)) {
+            response.setStatus("ACCESS DENIED");
+            response.setMessage("Account is locked");
+            response.setRiskLevel("HIGH");
+            return response;
+        }
         boolean trustedDevice =
                 deviceTrustService.isTrusted(deviceId);
 
@@ -60,7 +72,7 @@ public class AuthenticationService {
         /*
          * Correct username and password
          */
-        if (username.equals("admin") && password.equals("admin123")) {
+        if (userService.authenticate(username,password)) {
 
             // Successful login → reset failed attempts
             failedAttemptTracker.resetAttempts(username);
@@ -68,6 +80,8 @@ public class AuthenticationService {
             // After successful authentication, failed attempts = 0
             int failedAttempts = 0;
 
+            accountSecurityService.resetFailedAttempts(username);
+            accountSecurityService.resetFailedAttempts(username);
             RiskAssessment assessment =
                     riskAssessmentService.assessRisk(
                             failedAttempts,
@@ -142,6 +156,7 @@ public class AuthenticationService {
                 );
             }
 
+
         } else {
 
             /*
@@ -209,6 +224,8 @@ public class AuthenticationService {
                         "ACCESS DENIED"
                 );
             }
+            accountSecurityService.recordFailedAttempt(username);
+
         }
 
         return response;
@@ -221,10 +238,18 @@ public class AuthenticationService {
         AuthenticationResponse response =
                 new AuthenticationResponse();
 
+        if(!mfaService.isMFARequired(username)) {
+            response.setStatus("ACCESS DENIED");
+            response.setMessage("No active MFA challenge");
+            response.setRiskLevel("HIGH");
+            return response;
+        }
         boolean verified =
                 mfaService.verifyOTP(username, otp);
 
         if (verified) {
+            accountSecurityService.resetFailedAttempts(username);
+
 
             response.setStatus("AUTHENTICATED");
             response.setMessage(
