@@ -6,6 +6,7 @@ import com.adaptivemfa.acs.util.FailedAttemptTracker;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class AuthenticationService {
@@ -20,6 +21,7 @@ public class AuthenticationService {
     private final AuditLogService auditLogService;
     private final AccountSecurityService accountSecurityService;
     private final UserService userService;
+    private final AIService aiService;
 
     public AuthenticationService(
             RiskAssessmentService riskAssessmentService,
@@ -31,7 +33,8 @@ public class AuthenticationService {
             LoginBehaviorService loginBehaviorService,
             AuditLogService auditLogService,
             AccountSecurityService accountSecurityService,
-            UserService userService) {
+            UserService userService,
+            AIService aiService) {
 
         this.riskAssessmentService = riskAssessmentService;
         this.failedAttemptTracker = failedAttemptTracker;
@@ -43,6 +46,7 @@ public class AuthenticationService {
         this.auditLogService = auditLogService;
         this.accountSecurityService = accountSecurityService;
         this.userService = userService;
+        this.aiService = aiService;
     }
 
 
@@ -81,6 +85,20 @@ public class AuthenticationService {
             int failedAttempts = 0;
 
             accountSecurityService.resetFailedAttempts(username);
+
+            Map<String, Object> aiPrediction=aiService.predictRisk(
+                    failedAttempts,
+                    trustedDevice ? 1:0,
+                    trustedLocation ? 1:0,
+                    unusualLoginTime ? 1:0
+            );
+            System.out.println("AI PREDICTION: ");
+            System.out.println(aiPrediction);
+            String aiRiskLevel = (String) aiPrediction.get("predicted_risk");
+
+            System.out.println("AI RISK LEVEL:");
+            System.out.println(aiRiskLevel);
+
             RiskAssessment assessment =
                     riskAssessmentService.assessRisk(
                             failedAttempts,
@@ -91,7 +109,7 @@ public class AuthenticationService {
 
             String accessDecision =
                     accessDecisionService.decideAccess(
-                            assessment.getRisklevel()
+                            aiRiskLevel
                     );
 
             /*
@@ -167,6 +185,22 @@ public class AuthenticationService {
             // Get NEW failed-attempt count
             int failedAttempts =
                     failedAttemptTracker.getAttempts(username);
+            Map<String, Object> aiPrediction =
+                    aiService.predictRisk(
+                            failedAttempts,
+                            trustedDevice ? 1 : 0,
+                            trustedLocation ? 1 : 0,
+                            unusualLoginTime ? 1 : 0
+                    );
+
+            System.out.println("AI PREDICTION:");
+            System.out.println(aiPrediction);
+
+            String aiRiskLevel =
+                    (String) aiPrediction.get("predicted_risk");
+
+            System.out.println("AI RISK LEVEL:");
+            System.out.println(aiRiskLevel);
 
             RiskAssessment assessment =
                     riskAssessmentService.assessRisk(
@@ -178,7 +212,7 @@ public class AuthenticationService {
 
             String accessDecision =
                     accessDecisionService.decideAccess(
-                            assessment.getRisklevel()
+                            aiRiskLevel
                     );
 
             /*
