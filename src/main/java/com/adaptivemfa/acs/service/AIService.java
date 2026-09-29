@@ -25,7 +25,8 @@ public class AIService {
             int failedAttempts,
             int trustedDevice,
             int trustedLocation,
-            int unusualTime) {
+            int unusualTime,
+            int passwordFailed) {
 
         try {
 
@@ -33,7 +34,8 @@ public class AIService {
                     failedAttempts,
                     trustedDevice,
                     trustedLocation,
-                    unusualTime
+                    unusualTime,
+                    passwordFailed
             );
 
             String json = objectMapper.writeValueAsString(request);

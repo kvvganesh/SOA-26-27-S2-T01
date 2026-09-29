@@ -20,7 +20,11 @@ public class AuditLog {
 
     private String deviceId;
 
-    private String location;
+    private Double latitude;
+
+    private Double longitude;
+
+    private Double accuracy;
 
     private int failedAttempts;
 
@@ -52,12 +56,28 @@ public class AuditLog {
         this.deviceId = deviceId;
     }
 
-    public String getLocation() {
-        return location;
+    public Double getLatitude() {
+        return latitude;
     }
 
-    public void setLocation(String location) {
-        this.location = location;
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+    public Double getAccuracy() {
+        return accuracy;
+    }
+
+    public void setAccuracy(Double accuracy) {
+        this.accuracy = accuracy;
     }
 
     public int getFailedAttempts() {

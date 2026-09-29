@@ -3,100 +3,345 @@ package com.adaptivemfa.acs.service;
 import com.adaptivemfa.acs.exception.MFAException;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class MFAService {
 
-    private final Map<String, String> otpStore = new HashMap<>();
-    private final Map<String, LocalDateTime> expiryStore = new HashMap<>();
-    private final Map<String, Integer> attemptStore = new HashMap<>();
+    /*
+     * Separate OTP stores for different purposes.
+     *
+     * MFA_LOGIN:
+     * OTP generated when login requires MFA.
+     *
+     * PASSWORD_RESET:
+     * OTP generated when the user wants to reset
+     * their password.
+     */
+    private final Map<String, String> mfaOtpStore =
+            new ConcurrentHashMap<>();
+
+    private final Map<String, LocalDateTime> mfaExpiryStore =
+            new ConcurrentHashMap<>();
+
+    private final Map<String, Integer> mfaAttemptStore =
+            new ConcurrentHashMap<>();
+
+
+    private final Map<String, String> resetOtpStore =
+            new ConcurrentHashMap<>();
+
+    private final Map<String, LocalDateTime> resetExpiryStore =
+            new ConcurrentHashMap<>();
+
+    private final Map<String, Integer> resetAttemptStore =
+            new ConcurrentHashMap<>();
+
+
+    private final SecureRandom secureRandom =
+            new SecureRandom();
+
+    private final OTPDeliveryService otpDeliveryService;
+
+
+    public MFAService(
+            OTPDeliveryService otpDeliveryService) {
+
+        this.otpDeliveryService =
+                otpDeliveryService;
+    }
+
+
+    /*
+     * =========================================
+     * LOGIN MFA OTP
+     * =========================================
+     */
 
     public String generateOtp(String username) {
 
-        String otp = String.format(
-                "%06d",
-                new Random().nextInt(1000000)
-        );
+        String otp = generateRandomOtp();
 
-        otpStore.put(username, otp);
+        mfaOtpStore.put(username, otp);
 
-        expiryStore.put(
+        mfaExpiryStore.put(
                 username,
                 LocalDateTime.now().plusMinutes(2)
         );
 
-        // Reset attempts whenever a new OTP is generated
-        attemptStore.put(username, 0);
+        mfaAttemptStore.put(username, 0);
+
+        otpDeliveryService.sendOtp(
+                username,
+                otp
+        );
 
         return otp;
     }
 
-    public boolean verifyOTP(String username, String otp) {
 
-        String storedOTP = otpStore.get(username);
-        LocalDateTime expiryTime = expiryStore.get(username);
+    public boolean verifyOTP(
+            String username,
+            String otp) {
 
-        // OTP doesn't exist
-        if (storedOTP == null || expiryTime == null) {
+        String storedOTP =
+                mfaOtpStore.get(username);
+
+        LocalDateTime expiryTime =
+                mfaExpiryStore.get(username);
+
+
+        if (storedOTP == null ||
+                expiryTime == null) {
+
             return false;
         }
 
-        // OTP expired
-        if (LocalDateTime.now().isAfter(expiryTime)) {
-            removeOTP(username);
+
+        if (LocalDateTime.now()
+                .isAfter(expiryTime)) {
+
+            removeMfaOTP(username);
+
             return false;
         }
 
-        // Check maximum attempts before processing this attempt
-        int attempts = attemptStore.getOrDefault(username, 0);
+
+        int attempts =
+                mfaAttemptStore.getOrDefault(
+                        username,
+                        0
+                );
+
 
         if (attempts >= 3) {
-            removeOTP(username);
-            throw new MFAException("Maximum MFA attempts exceeded");
+
+            removeMfaOTP(username);
+
+            throw new MFAException(
+                    "Maximum MFA attempts exceeded"
+            );
         }
 
-        // Correct OTP
+
         if (storedOTP.equals(otp)) {
-            removeOTP(username);
+
+            removeMfaOTP(username);
+
             return true;
         }
 
-        // Wrong OTP
-        attempts++;
-        attemptStore.put(username, attempts);
 
-        // Third wrong attempt → invalidate OTP and throw exception
+        attempts++;
+
+        mfaAttemptStore.put(
+                username,
+                attempts
+        );
+
+
         if (attempts >= 3) {
-            removeOTP(username);
-            throw new MFAException("Maximum MFA attempts exceeded");
+
+            removeMfaOTP(username);
+
+            throw new MFAException(
+                    "Maximum MFA attempts exceeded"
+            );
         }
+
 
         return false;
     }
 
-    private void removeOTP(String username) {
 
-        otpStore.remove(username);
-        expiryStore.remove(username);
-        attemptStore.remove(username);
-    }
+    public boolean isMFARequired(
+            String username) {
 
-    public boolean isMFARequired(String username){
-        String storedOTP=otpStore.get(username);
-        LocalDateTime expiryTime=expiryStore.get(username);
+        String storedOTP =
+                mfaOtpStore.get(username);
 
-        if(storedOTP==null || expiryTime==null){
+        LocalDateTime expiryTime =
+                mfaExpiryStore.get(username);
+
+
+        if (storedOTP == null ||
+                expiryTime == null) {
+
             return false;
         }
-        if (LocalDateTime.now().isAfter(expiryTime)) {
-            removeOTP(username);
+
+
+        if (LocalDateTime.now()
+                .isAfter(expiryTime)) {
+
+            removeMfaOTP(username);
+
             return false;
         }
+
+
         return true;
     }
 
+
+    /*
+     * =========================================
+     * PASSWORD RESET OTP
+     * =========================================
+     */
+
+    public String generatePasswordResetOtp(
+            String username) {
+
+        String otp = generateRandomOtp();
+
+        resetOtpStore.put(
+                username,
+                otp
+        );
+
+        resetExpiryStore.put(
+                username,
+                LocalDateTime.now().plusMinutes(2)
+        );
+
+        resetAttemptStore.put(
+                username,
+                0
+        );
+
+        otpDeliveryService.sendOtp(
+                username,
+                otp
+        );
+
+        return otp;
+    }
+
+
+    public boolean verifyPasswordResetOtp(
+            String username,
+            String otp) {
+
+        String storedOTP =
+                resetOtpStore.get(username);
+
+        LocalDateTime expiryTime =
+                resetExpiryStore.get(username);
+
+
+        if (storedOTP == null ||
+                expiryTime == null) {
+
+            return false;
+        }
+
+
+        if (LocalDateTime.now()
+                .isAfter(expiryTime)) {
+
+            removePasswordResetOTP(username);
+
+            return false;
+        }
+
+
+        int attempts =
+                resetAttemptStore.getOrDefault(
+                        username,
+                        0
+                );
+
+
+        if (attempts >= 3) {
+
+            removePasswordResetOTP(username);
+
+            throw new MFAException(
+                    "Maximum password reset OTP attempts exceeded"
+            );
+        }
+
+
+        if (storedOTP.equals(otp)) {
+
+            removePasswordResetOTP(username);
+
+            return true;
+        }
+
+
+        attempts++;
+
+        resetAttemptStore.put(
+                username,
+                attempts
+        );
+
+
+        if (attempts >= 3) {
+
+            removePasswordResetOTP(username);
+
+            throw new MFAException(
+                    "Maximum password reset OTP attempts exceeded"
+            );
+        }
+
+
+        return false;
+    }
+
+
+    /*
+     * =========================================
+     * COMMON OTP GENERATOR
+     * =========================================
+     */
+
+    private String generateRandomOtp() {
+
+        return String.format(
+                "%06d",
+                secureRandom.nextInt(1000000)
+        );
+    }
+
+
+    /*
+     * =========================================
+     * REMOVE LOGIN MFA OTP
+     * =========================================
+     */
+
+    private void removeMfaOTP(
+            String username) {
+
+        mfaOtpStore.remove(username);
+
+        mfaExpiryStore.remove(username);
+
+        mfaAttemptStore.remove(username);
+    }
+
+
+    /*
+     * =========================================
+     * REMOVE PASSWORD RESET OTP
+     * =========================================
+     */
+
+    private void removePasswordResetOTP(
+            String username) {
+
+        resetOtpStore.remove(username);
+
+        resetExpiryStore.remove(username);
+
+        resetAttemptStore.remove(username);
+    }
 }
+

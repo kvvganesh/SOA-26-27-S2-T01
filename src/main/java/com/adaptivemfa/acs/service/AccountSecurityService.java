@@ -57,7 +57,7 @@ public class AccountSecurityService {
 
 
     // Record a failed login attempt
-    public void recordFailedAttempt(String username) {
+    public int recordFailedAttempt(String username) {
 
         Optional<AccountSecurity> account =
                 accountSecurityRepository.findById(username);
@@ -91,6 +91,7 @@ public class AccountSecurityService {
 
 
         accountSecurityRepository.save(security);
+        return attempts;
     }
 
 

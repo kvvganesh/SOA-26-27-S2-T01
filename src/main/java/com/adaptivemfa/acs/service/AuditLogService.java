@@ -22,7 +22,9 @@ public class AuditLogService {
     public void log(
             String username,
             String deviceId,
-            String location,
+            Double latitude,
+            Double longitude,
+            Double accuracy,
             int riskScore,
             String riskLevel,
             String decision
@@ -31,7 +33,9 @@ public class AuditLogService {
         log(
                 username,
                 deviceId,
-                location,
+                latitude,
+                longitude,
+                accuracy,
                 0,
                 riskScore,
                 riskLevel,
@@ -39,11 +43,14 @@ public class AuditLogService {
         );
     }
 
-    // New method with failedAttempts
+
+    // Method with failedAttempts
     public void log(
             String username,
             String deviceId,
-            String location,
+            Double latitude,
+            Double longitude,
+            Double accuracy,
             int failedAttempts,
             int riskScore,
             String riskLevel,
@@ -54,7 +61,11 @@ public class AuditLogService {
 
         auditLog.setUsername(username);
         auditLog.setDeviceId(deviceId);
-        auditLog.setLocation(location);
+
+        auditLog.setLatitude(latitude);
+        auditLog.setLongitude(longitude);
+        auditLog.setAccuracy(accuracy);
+
         auditLog.setFailedAttempts(failedAttempts);
         auditLog.setRiskScore(riskScore);
         auditLog.setRiskLevel(riskLevel);

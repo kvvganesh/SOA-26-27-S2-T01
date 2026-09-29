@@ -17,26 +17,69 @@ import java.time.LocalDateTime;
 @RestController
 @RequestMapping("/users")
 public class UserController {
+
     private final UserService userService;
+
     public UserController(UserService userService) {
         this.userService = userService;
     }
 
+
+    /*
+     * =========================================
+     * USER REGISTRATION
+     * =========================================
+     */
+
     @PostMapping("/register")
-    public ResponseEntity<RegistrationResponse> registerUser(@Valid @RequestBody RegisterRequest request) {
-        if(userService.userExists(request.getUsername())) {
-            throw new UserAlreadyExistsException("Username already exists!");
+    public ResponseEntity<RegistrationResponse> registerUser(
+            @Valid @RequestBody RegisterRequest request) {
+
+        /*
+         * Check whether username already exists
+         */
+
+        if (userService.userExists(
+                request.getUsername())) {
+
+            throw new UserAlreadyExistsException(
+                    "Username already exists!"
+            );
         }
+
+
+        /*
+         * UserService also validates the password
+         * using PasswordPolicyService.
+         */
+
         userService.createUser(
                 request.getUsername(),
                 request.getPassword()
         );
-        RegistrationResponse response=new RegistrationResponse(
-                request.getUsername(),
-                "REGISTERED",
-                "User registered successfully",
-                LocalDateTime.now()
-        );
-        return ResponseEntity.ok(response);
+
+
+        /*
+         * Create registration response
+         */
+
+        RegistrationResponse response =
+                new RegistrationResponse(
+                        request.getUsername(),
+                        "REGISTERED",
+                        "User registered successfully",
+                        LocalDateTime.now()
+                );
+
+
+        /*
+         * 201 CREATED
+         */
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
+
+
 }
