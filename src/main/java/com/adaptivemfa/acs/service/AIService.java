@@ -55,6 +55,10 @@ public class AIService {
             );
             connection.setDoOutput(true);
 
+            // Never let a stopped / hanging AI service block a login.
+            connection.setConnectTimeout(3000);
+            connection.setReadTimeout(5000);
+
             byte[] requestBody =
                     json.getBytes(StandardCharsets.UTF_8);
 
@@ -78,6 +82,13 @@ public class AIService {
             BufferedReader reader;
 
             if (statusCode >= 400) {
+
+                if (connection.getErrorStream() == null) {
+                    throw new RuntimeException(
+                            "AI service returned HTTP " + statusCode
+                    );
+                }
+
                 reader = new BufferedReader(
                         new InputStreamReader(
                                 connection.getErrorStream(),

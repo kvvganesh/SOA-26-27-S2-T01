@@ -40,9 +40,7 @@ public class TrustedDeviceController {
 
         String username = authentication.getName();
 
-        if (!recentAuthenticationService.isMfaVerified(username)) {
-            return ResponseEntity.status(403).build();
-        }
+        recentAuthenticationService.requireRecentAuthentication(username);
 
         TrustedDevice device =
                 service.rememberDevice(username, request);

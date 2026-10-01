@@ -55,7 +55,8 @@ public class UserController {
 
         userService.createUser(
                 request.getUsername(),
-                request.getPassword()
+                request.getPassword(),
+                request.getEmail()
         );
 
 

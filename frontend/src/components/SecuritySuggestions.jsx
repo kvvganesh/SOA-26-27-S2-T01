@@ -1,26 +1,32 @@
+import Icon from "./Icons";
+
 function SecuritySuggestions({
   suggestions
 }) {
 
   return (
-    <section>
-
-      <h2>Security Suggestions</h2>
+    <section className="suggestions">
 
       {suggestions?.length > 0 ? (
 
         suggestions.map(
           (suggestion, index) => (
 
-            <div key={index}>
+            <div className="suggestion" key={index}>
 
-              <h3>
-                {suggestion.type}
-              </h3>
+              <span className="suggestion-icon">
+                <Icon name="alert" size={18} />
+              </span>
 
-              <p>
-                {suggestion.message}
-              </p>
+              <div>
+                <h3>
+                  {suggestion.type}
+                </h3>
+
+                <p>
+                  {suggestion.message}
+                </p>
+              </div>
 
             </div>
           )
@@ -28,10 +34,15 @@ function SecuritySuggestions({
 
       ) : (
 
-        <p>
-          No additional security actions
-          are required.
-        </p>
+        <div className="suggestion ok">
+          <span className="suggestion-icon">
+            <Icon name="check" size={18} />
+          </span>
+          <div>
+            <h3>You're all set</h3>
+            <p>No additional security actions are required.</p>
+          </div>
+        </div>
 
       )}
 

@@ -3,14 +3,20 @@ package com.adaptivemfa.acs.controller;
 import com.adaptivemfa.acs.model.*;
 import com.adaptivemfa.acs.service.AuthenticationService;
 import com.adaptivemfa.acs.service.AuthenticationSessionService;
+import com.adaptivemfa.acs.service.RateLimitService;
+import com.adaptivemfa.acs.service.RecentAuthenticationService;
 import com.adaptivemfa.acs.service.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,12 +27,22 @@ public class AuthenticationController {
     private final AuthenticationService authenticationService;
     private final AuthenticationSessionService authenticationSessionService;
     private final UserService userService;
+    private final RateLimitService rateLimitService;
+    private final RecentAuthenticationService recentAuthenticationService;
 
 
     public AuthenticationController(
             AuthenticationService authenticationService,
             AuthenticationSessionService authenticationSessionService,
-            UserService userService) {
+            UserService userService,
+            RateLimitService rateLimitService,
+            RecentAuthenticationService recentAuthenticationService) {
+
+        this.rateLimitService =
+                rateLimitService;
+
+        this.recentAuthenticationService =
+                recentAuthenticationService;
 
         this.authenticationService =
                 authenticationService;
@@ -48,6 +64,10 @@ public class AuthenticationController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
+
+        rateLimitService.isAllowed(
+                "LOGIN:" + request.getUsername()
+        );
 
 
         AuthenticationResponse response =
@@ -140,6 +160,10 @@ public class AuthenticationController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
 
+        rateLimitService.isAllowed(
+                "MFA:" + request.getUsername()
+        );
+
 
         AuthenticationResponse response =
                 authenticationService.verifyMFA(
@@ -184,6 +208,56 @@ public class AuthenticationController {
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
                 .body(response);
+    }
+
+
+// =========================================================
+// LOGOUT
+// =========================================================
+
+    @PostMapping("/logout")
+    public ResponseEntity<AuthenticationResponse> logout(
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
+
+        Authentication authentication =
+                SecurityContextHolder.getContext()
+                        .getAuthentication();
+
+        if (authentication != null
+                && authentication.isAuthenticated()
+                && !(authentication
+                instanceof AnonymousAuthenticationToken)) {
+
+            recentAuthenticationService.clear(
+                    authentication.getName()
+            );
+        }
+
+        authenticationSessionService.clearSession(
+                httpRequest,
+                httpResponse
+        );
+
+        HttpSession session =
+                httpRequest.getSession(false);
+
+        if (session != null) {
+
+            session.invalidate();
+        }
+
+
+        AuthenticationResponse response =
+                new AuthenticationResponse();
+
+        response.setStatus("LOGGED_OUT");
+
+        response.setMessage("Signed out successfully");
+
+        response.setRiskLevel("LOW");
+
+        return ResponseEntity.ok(response);
     }
 
 
@@ -235,6 +309,10 @@ public class AuthenticationController {
             @Valid @RequestBody ForgotPasswordRequest request) {
 
 
+        rateLimitService.isAllowed(
+                "FORGOT:" + request.getUsername()
+        );
+
         /*
          * Generate OTP only if the account exists.
          *
@@ -284,6 +362,10 @@ public class AuthenticationController {
     @PostMapping("/reset-password")
     public ResponseEntity<AuthenticationResponse> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request) {
+
+        rateLimitService.isAllowed(
+                "RESET:" + request.getUsername()
+        );
 
 
         userService.resetPassword(

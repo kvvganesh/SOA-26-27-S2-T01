@@ -35,9 +35,7 @@ public class TrustedLocationController {
 
         String username = authentication.getName();
 
-        if (!recentAuthenticationService.isMfaVerified(username)) {
-            return ResponseEntity.status(403).build();
-        }
+        recentAuthenticationService.requireRecentAuthentication(username);
 
         TrustedLocationRequest secureRequest =
                 new TrustedLocationRequest(
@@ -45,7 +43,8 @@ public class TrustedLocationController {
                         request.latitude(),
                         request.longitude(),
                         request.radiusMeters(),
-                        request.label()
+                        request.label(),
+                        request.accuracy()
                 );
 
         TrustedLocation location =
@@ -65,18 +64,16 @@ public class TrustedLocationController {
         );
     }
 
-    @DeleteMapping("/{latitude}/{longitude}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<String> removeLocation(
-            @PathVariable Double latitude,
-            @PathVariable Double longitude,
+            @PathVariable Long id,
             Authentication authentication) {
 
         String username = authentication.getName();
 
         service.removeLocation(
                 username,
-                latitude,
-                longitude
+                id
         );
 
         return ResponseEntity.ok(

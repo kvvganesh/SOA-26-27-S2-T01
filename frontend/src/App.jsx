@@ -13,44 +13,26 @@ function App() {
   if (showRegistration) {
 
     return (
-      <div>
-
-        <RegistrationPage
-          onRegistrationComplete={() =>
-            setShowRegistration(false)
-          }
-        />
-
-        <button
-          onClick={() =>
-            setShowRegistration(false)
-          }
-        >
-          Back to Login
-        </button>
-
-      </div>
+      <RegistrationPage
+        onRegistrationComplete={() =>
+          setShowRegistration(false)
+        }
+        onBackToLogin={() =>
+          setShowRegistration(false)
+        }
+      />
     );
 
   }
 
 
   return (
-    <div>
-
-      <LoginPage title="Adaptive MFA" />
-
-      <hr />
-
-      <button
-        onClick={() =>
-          setShowRegistration(true)
-        }
-      >
-        Create New Account
-      </button>
-
-    </div>
+    <LoginPage
+      title="Adaptive MFA"
+      onCreateAccount={() =>
+        setShowRegistration(true)
+      }
+    />
   );
 
 }

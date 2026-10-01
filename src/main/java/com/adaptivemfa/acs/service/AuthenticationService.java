@@ -33,6 +33,8 @@ public class AuthenticationService {
 
     private final MfaLoginContextService mfaLoginContextService;
 
+    private final OtpSender otpSender;
+
 
     public AuthenticationService(
             RiskAssessmentService riskAssessmentService,
@@ -45,7 +47,10 @@ public class AuthenticationService {
             AccountSecurityService accountSecurityService,
             UserService userService,
             MfaLoginContextService mfaLoginContextService,
-            RecentAuthenticationService recentAuthenticationService) {
+            RecentAuthenticationService recentAuthenticationService,
+            OtpSender otpSender) {
+
+        this.otpSender = otpSender;
 
         this.recentAuthenticationService = recentAuthenticationService;
 
@@ -398,7 +403,8 @@ public class AuthenticationService {
 
             response.setMessage(
                     "Additional authentication required. " +
-                            "Please enter the OTP sent to your registered device."
+                            "Please enter the OTP sent to " +
+                            otpSender.maskedDestination(username) + "."
             );
 
 
@@ -498,6 +504,17 @@ public class AuthenticationService {
         // 14. VERIFY OTP
         // =====================================================
 
+        /*
+         * The context saved when MFA was requested. Used for
+         * the audit trail and the security suggestions.
+         */
+
+        MfaLoginContext context =
+                mfaLoginContextService.get(
+                        username
+                );
+
+
         boolean verified =
                 mfaService.verifyOTP(
                         username,
@@ -530,14 +547,8 @@ public class AuthenticationService {
 
 
             /*
-             * Recover the original login context.
+             * Use the original login context.
              */
-
-            MfaLoginContext context =
-                    mfaLoginContextService.get(
-                            username
-                    );
-
 
             if (context != null) {
 
@@ -565,10 +576,10 @@ public class AuthenticationService {
 
             auditLogService.log(
                     username,
-                    "MFA",
-                    null,
-                    null,
-                    null,
+                    context != null ? context.getDeviceId() : "MFA",
+                    context != null ? context.getLatitude() : null,
+                    context != null ? context.getLongitude() : null,
+                    context != null ? context.getAccuracy() : null,
                     0,
                     0,
                     "LOW",
@@ -600,10 +611,10 @@ public class AuthenticationService {
 
         auditLogService.log(
                 username,
-                "MFA",
-                null,
-                null,
-                null,
+                context != null ? context.getDeviceId() : "MFA",
+                context != null ? context.getLatitude() : null,
+                context != null ? context.getLongitude() : null,
+                context != null ? context.getAccuracy() : null,
                 0,
                 0,
                 "HIGH",

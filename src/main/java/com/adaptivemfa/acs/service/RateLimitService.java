@@ -22,6 +22,12 @@ public class RateLimitService {
      */
     private static final int WINDOW_MINUTES = 1;
 
+    /*
+     * When the store grows beyond this size, expired windows are
+     * purged so that random usernames cannot fill the memory.
+     */
+    private static final int PURGE_THRESHOLD = 10_000;
+
 
     /*
      * Stores a separate counter for every key.
@@ -41,67 +47,59 @@ public class RateLimitService {
         LocalDateTime now =
                 LocalDateTime.now();
 
+        if (requestStore.size() > PURGE_THRESHOLD) {
 
-        /*
-         * Create a new counter if this is
-         * the first request from this key.
-         */
-        RequestCounter counter =
-                requestStore.computeIfAbsent(
-                        key,
-                        k -> new RequestCounter(now)
-                );
-
-
-        /*
-         * Check whether the current
-         * one-minute window has expired.
-         */
-        if (now.isAfter(
-                counter.getWindowStart()
-                        .plusMinutes(WINDOW_MINUTES))) {
-
-            /*
-             * Start a completely new window.
-             */
-            RequestCounter newCounter =
-                    new RequestCounter(now);
-
-            requestStore.put(
-                    key,
-                    newCounter
-            );
-
-            return true;
+            requestStore.entrySet().removeIf(entry ->
+                    isExpired(entry.getValue(), now));
         }
 
 
         /*
-         * Atomically increase the request count.
+         * compute() is atomic for a key, so simultaneous requests
+         * can't use the same counter value. A new window starts
+         * (with count 1) when there is no counter yet or the old
+         * window has expired; otherwise the counter is incremented.
          *
-         * This prevents multiple simultaneous
-         * requests from incorrectly using the
-         * same counter value.
+         * (The previous implementation counted the very first
+         * request twice.)
          */
-        int currentCount =
-                counter.incrementAndGet();
+        RequestCounter counter =
+                requestStore.compute(
+                        key,
+                        (k, existing) -> {
+
+                            if (existing == null
+                                    || isExpired(existing, now)) {
+
+                                return new RequestCounter(now);
+                            }
+
+                            existing.increment();
+
+                            return existing;
+                        }
+                );
 
 
-        /*
-         * Check whether the limit was exceeded.
-         */
-        if (currentCount > MAX_ATTEMPTS) {
+        if (counter.get() > MAX_ATTEMPTS) {
 
-            /*
-             * Don't allow more requests.
-             */
             throw new RateLimitExceededException(
                     "Too many requests. Please try again later."
             );
         }
 
-
         return true;
+    }
+
+
+    private boolean isExpired(
+            RequestCounter counter,
+            LocalDateTime now) {
+
+        return now.isAfter(
+                counter.getWindowStart()
+                        .plusMinutes(WINDOW_MINUTES)
+        );
     }
 
 
@@ -115,29 +113,32 @@ public class RateLimitService {
         private final AtomicInteger count;
 
 
-        public RequestCounter(
-                LocalDateTime windowStart) {
+        RequestCounter(LocalDateTime windowStart) {
 
             this.windowStart = windowStart;
 
             /*
              * The first request is counted immediately.
              */
-            this.count =
-                    new AtomicInteger(1);
+            this.count = new AtomicInteger(1);
         }
 
 
-        public LocalDateTime getWindowStart() {
+        LocalDateTime getWindowStart() {
 
             return windowStart;
         }
 
 
-        public int incrementAndGet() {
+        void increment() {
 
-            return count.incrementAndGet();
+            count.incrementAndGet();
+        }
+
+
+        int get() {
+
+            return count.get();
         }
     }
 }
-

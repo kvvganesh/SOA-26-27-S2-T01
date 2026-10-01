@@ -1,4 +1,6 @@
 import { useState } from "react";
+import AuthLayout from "./AuthLayout";
+import Icon from "./Icons";
 
 function MFAVerification({
   username,
@@ -47,64 +49,67 @@ function MFAVerification({
 
 
   return (
-    <div>
+    <AuthLayout
+      title="Verify it's you"
+      subtitle={message}
+    >
+      <div className="mfa-user">
+        <Icon name="user" size={16} />
+        <span>{username}</span>
+      </div>
 
-      <h1>Multi-Factor Authentication</h1>
-
-      <p>
-        {message}
+      <p className="hint">
+        Enter the 6-digit code we sent you. It expires in 2 minutes
+        and can be used once. Check your spam folder if it doesn't arrive.
       </p>
-
-      <p>
-        Enter the 6-digit OTP sent to your
-        registered contact.
-      </p>
-
 
       {error && (
-        <p>
-          {error}
-        </p>
+        <div className="alert error" role="alert">
+          <Icon name="alert" size={16} />{error}
+        </div>
       )}
 
+      <form className="form" onSubmit={handleSubmit}>
 
-      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label htmlFor="otp">One-time password</label>
+          <input
+            id="otp"
+            className="otp-input"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            autoFocus
+            maxLength="6"
+            placeholder="••••••"
+            value={otp}
+            onChange={(event) => {
 
-        <input
-          type="text"
-          inputMode="numeric"
-          maxLength="6"
-          placeholder="Enter OTP"
-          value={otp}
-          onChange={(event) => {
+              const value =
+                event.target.value
+                  .replace(/\D/g, "");
 
-            const value =
-              event.target.value
-                .replace(/\D/g, "");
+              setOtp(value);
 
-            setOtp(value);
-
-          }}
-        />
-
+            }}
+          />
+        </div>
 
         <button
+          className="btn btn-primary btn-block"
           type="submit"
           disabled={
             loading ||
             otp.length !== 6
           }
         >
-
           {loading
-            ? "Verifying..."
+            ? <><span className="spinner" /> Verifying…</>
             : "Verify OTP"}
-
         </button>
 
       </form>
-
-    </div>
+    </AuthLayout>
   );
 }
 

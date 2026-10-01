@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
+import Icon from "./Icons";
 
-const API_BASE_URL =
-  "http://localhost:8081";
+import { listDevices, removeDevice } from "../services/authService";
 
-function TrustedDevices() {
+
+// `refreshKey` changes whenever a device is remembered elsewhere on the page,
+// which makes the list reload (before, it only loaded once on mount so a newly
+// remembered device never showed up until a page refresh).
+function TrustedDevices({ refreshKey = 0 }) {
 
   const [devices, setDevices] =
     useState([]);
@@ -15,143 +19,109 @@ function TrustedDevices() {
     useState("");
 
 
-  async function loadDevices() {
+  useEffect(() => {
+
+    let cancelled = false;
+
+    listDevices()
+      .then((result) => {
+
+        if (cancelled) return;
+
+        if (!result.ok) {
+          throw new Error(result.data?.message);
+        }
+
+        setDevices(result.data ?? []);
+        setError("");
+      })
+      .catch((err) => {
+
+        if (cancelled) return;
+
+        console.error(err);
+
+        setError(
+          err.message || "Unable to load trusted devices."
+        );
+      })
+      .finally(() => {
+
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+
+  }, [refreshKey]);
+
+
+  async function handleRemove(deviceId) {
+
+    setError("");
 
     try {
 
-      const response =
-        await fetch(
-          `${API_BASE_URL}/security/devices`,
-          {
-            method: "GET",
-            credentials: "include"
-          }
-        );
+      const result = await removeDevice(deviceId);
 
-      if (!response.ok) {
-        throw new Error(
-          "Unable to load trusted devices."
-        );
-      }
-
-      const data =
-        await response.json();
-
-      setDevices(data);
-
-    } catch (error) {
-
-      console.error(error);
-
-      setError(
-        "Unable to load trusted devices."
-      );
-
-    } finally {
-
-      setLoading(false);
-    }
-  }
-
-
-  async function removeDevice(deviceId) {
-
-    try {
-
-      const response =
-        await fetch(
-          `${API_BASE_URL}/security/devices/${encodeURIComponent(deviceId)}`,
-          {
-            method: "DELETE",
-            credentials: "include"
-          }
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          "Unable to remove device."
-        );
+      if (!result.ok) {
+        throw new Error(result.data?.message);
       }
 
       setDevices(
-        devices.filter(
-          device =>
-            device.deviceId !== deviceId
+        (current) => current.filter(
+          device => device.deviceId !== deviceId
         )
       );
 
-    } catch (error) {
+    } catch (err) {
 
-      console.error(error);
+      console.error(err);
 
-      setError(
-        "Unable to remove device."
-      );
+      setError(err.message || "Unable to remove device.");
     }
-  }
-
-
-  useEffect(() => {
-    loadDevices();
-  }, []);
-
-
-  if (loading) {
-    return (
-      <section>
-        <h2>Trusted Devices</h2>
-        <p>Loading...</p>
-      </section>
-    );
   }
 
 
   return (
-    <section>
+    <section className="panel">
 
-      <h2>Trusted Devices</h2>
+      <div className="panel-head">
+        <span className="panel-icon"><Icon name="device" size={18} /></span>
+        <h2>Trusted Devices</h2>
+        {!loading && <span className="count">{devices.length}</span>}
+      </div>
 
-      {error && (
-        <p>{error}</p>
-      )}
+      {error && <div className="alert error" role="alert">{error}</div>}
 
-      {devices.length === 0 ? (
-
-        <p>
-          No trusted devices found.
-        </p>
-
+      {loading ? (
+        <p className="empty">Loading…</p>
+      ) : devices.length === 0 ? (
+        <p className="empty">No trusted devices found.</p>
       ) : (
-
-        devices.map(device => (
-
-          <div key={device.id}>
-
-            <h3>
-              {device.deviceName}
-            </h3>
-
-            <p>
-              Device ID: {device.deviceId}
-            </p>
-
-            <button
-              onClick={() =>
-                removeDevice(
-                  device.deviceId
-                )
-              }
-            >
-              Remove
-            </button>
-
-          </div>
-
-        ))
+        <ul className="item-list">
+          {devices.map(device => (
+            <li className="item" key={device.id}>
+              <div className="item-body">
+                <strong>{device.deviceName}</strong>
+                <small title={device.deviceId}>ID · {device.deviceId}</small>
+              </div>
+              <button
+                className="btn btn-ghost btn-danger"
+                aria-label="Remove device"
+                onClick={() => handleRemove(device.deviceId)}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
     </section>
   );
 }
+
 
 export default TrustedDevices;

@@ -16,6 +16,8 @@ public record TrustedLocationRequest(
         @NotNull(message = "Radius is required")
         Double radiusMeters,
 
-        String label
+        String label,
+
+        Double accuracy
 ) {
 }

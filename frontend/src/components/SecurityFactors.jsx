@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Icon from "./Icons";
 
 import {
   rememberDevice,
@@ -6,8 +7,14 @@ import {
   rememberLoginTime
 } from "../services/authService";
 
+import { getLocationName } from "../services/locationService";
+
+
+// `onChanged(type)` lets the dashboard reload the trusted lists and hide the
+// matching suggestion ("DEVICE" | "LOCATION" | "LOGIN_TIME").
 function SecurityFactors({
-  loginContext
+  loginContext,
+  onChanged
 }) {
 
   const [loading, setLoading] =
@@ -41,9 +48,9 @@ function SecurityFactors({
 
       if (result.statusCode === 200) {
 
-        setMessage(
-          "This device has been remembered."
-        );
+        setMessage("This device has been remembered.");
+
+        onChanged?.("DEVICE");
 
       } else {
 
@@ -53,12 +60,12 @@ function SecurityFactors({
         );
       }
 
-    } catch (error) {
+    } catch (err) {
 
-      console.error(error);
+      console.error(err);
 
       setError(
-        "Unable to remember this device."
+        "Unable to reach the server. Is the backend running?"
       );
 
     } finally {
@@ -75,19 +82,27 @@ function SecurityFactors({
 
     try {
 
+      // Best effort: a readable label such as "Hyderabad".
+      const placeName =
+        await getLocationName(
+          loginContext.latitude,
+          loginContext.longitude
+        );
+
       const result =
         await rememberLocation(
           loginContext.latitude,
           loginContext.longitude,
           100,
-          "Current Location"
+          placeName || "Current Location",
+          loginContext.accuracy
         );
 
       if (result.statusCode === 200) {
 
-        setMessage(
-          "This location has been remembered."
-        );
+        setMessage("This location has been remembered.");
+
+        onChanged?.("LOCATION");
 
       } else {
 
@@ -97,12 +112,12 @@ function SecurityFactors({
         );
       }
 
-    } catch (error) {
+    } catch (err) {
 
-      console.error(error);
+      console.error(err);
 
       setError(
-        "Unable to remember this location."
+        "Unable to reach the server. Is the backend running?"
       );
 
     } finally {
@@ -122,11 +137,14 @@ function SecurityFactors({
       const currentHour =
         loginContext.loginHour;
 
+      // +/- 1 hour, wrapping around midnight (0 -> 23, 23 -> 0).
+      // The old Math.max/Math.min version produced 0-1 at midnight and
+      // 22-23 at 23:00, so the neighbouring hours were never trusted.
       const startHour =
-        Math.max(0, currentHour - 1);
+        (currentHour + 23) % 24;
 
       const endHour =
-        Math.min(23, currentHour + 1);
+        (currentHour + 1) % 24;
 
       const result =
         await rememberLoginTime(
@@ -137,8 +155,10 @@ function SecurityFactors({
       if (result.statusCode === 200) {
 
         setMessage(
-          `Login time remembered: ${startHour}:00 - ${endHour}:00`
+          `Login time remembered: ${startHour}:00 - ${endHour}:59`
         );
+
+        onChanged?.("LOGIN_TIME");
 
       } else {
 
@@ -148,12 +168,12 @@ function SecurityFactors({
         );
       }
 
-    } catch (error) {
+    } catch (err) {
 
-      console.error(error);
+      console.error(err);
 
       setError(
-        "Unable to remember login time."
+        "Unable to reach the server. Is the backend running?"
       );
 
     } finally {
@@ -166,102 +186,92 @@ function SecurityFactors({
   if (!loginContext) {
     return (
       <section>
-
-        <h2>Security Factors</h2>
-
-        <p>
+        <p className="empty">
           Security context is unavailable.
         </p>
-
       </section>
     );
   }
 
 
+  const hasLocation =
+    loginContext.latitude != null &&
+    loginContext.longitude != null;
+
+
   return (
-    <section>
+    <section id="factors">
 
-      <h2>Security Factors</h2>
-
-      <p>
-        You can remember individual security
-        factors for future logins.
+      <p className="section-copy">
+        Remember individual security factors so future sign-ins from
+        this context skip extra verification.
       </p>
 
-
       {message && (
-        <p>{message}</p>
+        <div className="alert success" role="status">
+          <Icon name="check" size={16} />{message}
+        </div>
       )}
 
       {error && (
-        <p>{error}</p>
+        <div className="alert error" role="alert">
+          <Icon name="alert" size={16} />{error}
+        </div>
       )}
 
+      {!hasLocation && (
+        <div className="alert warning" role="status">
+          <Icon name="alert" size={16} />
+          {loginContext.locationError ||
+            "Location was not available for this sign-in."}
+        </div>
+      )}
 
-      <div>
+      <div className="factor-tiles">
 
-        <h3>📱 Device</h3>
+        <div className="factor-tile">
+          <span className="panel-icon"><Icon name="device" size={18} /></span>
+          <h3>Device</h3>
+          <p>Remember this browser as a trusted device.</p>
+          <button
+            className="btn btn-outline"
+            onClick={handleRememberDevice}
+            disabled={loading !== ""}
+          >
+            {loading === "device" ? "Saving…" : "Remember device"}
+          </button>
+        </div>
 
-        <p>
-          Remember this browser as a
-          trusted device.
-        </p>
+        <div className="factor-tile">
+          <span className="panel-icon"><Icon name="pin" size={18} /></span>
+          <h3>Location</h3>
+          <p>Remember the location detected during login.</p>
+          <button
+            className="btn btn-outline"
+            onClick={handleRememberLocation}
+            disabled={loading !== "" || !hasLocation}
+          >
+            {loading === "location" ? "Saving…" : "Remember location"}
+          </button>
+        </div>
 
-        <button
-          onClick={handleRememberDevice}
-          disabled={loading !== ""}
-        >
-          {loading === "device"
-            ? "Saving..."
-            : "Remember Device"}
-        </button>
-
-      </div>
-
-
-      <div>
-
-        <h3>📍 Location</h3>
-
-        <p>
-          Remember the location detected
-          during login.
-        </p>
-
-        <button
-          onClick={handleRememberLocation}
-          disabled={loading !== ""}
-        >
-          {loading === "location"
-            ? "Saving..."
-            : "Remember Location"}
-        </button>
-
-      </div>
-
-
-      <div>
-
-        <h3>🕐 Login Time</h3>
-
-        <p>
-          Remember the current login time
-          as trusted.
-        </p>
-
-        <button
-          onClick={handleRememberLoginTime}
-          disabled={loading !== ""}
-        >
-          {loading === "time"
-            ? "Saving..."
-            : "Remember Login Time"}
-        </button>
-
+        <div className="factor-tile">
+          <span className="panel-icon"><Icon name="clock" size={18} /></span>
+          <h3>Login time</h3>
+          <p>Trust the current login hour (±1 hour).</p>
+          <button
+            className="btn btn-outline"
+            onClick={handleRememberLoginTime}
+            disabled={loading !== ""}
+          >
+            {loading === "time" ? "Saving…" : "Remember login time"}
+          </button>
+        </div>
       </div>
 
     </section>
   );
 }
+
 
 export default SecurityFactors;

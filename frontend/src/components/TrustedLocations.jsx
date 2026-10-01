@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import Icon from "./Icons";
 
-const API_BASE_URL =
-  "http://localhost:8081";
+import { listLocations, removeLocation } from "../services/authService";
 
-function TrustedLocations() {
+
+function TrustedLocations({ refreshKey = 0 }) {
 
   const [locations, setLocations] =
     useState([]);
@@ -15,163 +16,114 @@ function TrustedLocations() {
     useState("");
 
 
-  async function loadLocations() {
+  useEffect(() => {
+
+    let cancelled = false;
+
+    listLocations()
+      .then((result) => {
+
+        if (cancelled) return;
+
+        if (!result.ok) {
+          throw new Error(result.data?.message);
+        }
+
+        setLocations(result.data ?? []);
+        setError("");
+      })
+      .catch((err) => {
+
+        if (cancelled) return;
+
+        console.error(err);
+
+        setError(
+          err.message || "Unable to load trusted locations."
+        );
+      })
+      .finally(() => {
+
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+
+  }, [refreshKey]);
+
+
+  // Removes by id: the old coordinate based call deleted the first
+  // overlapping location, which was not always the one that was clicked.
+  async function handleRemove(id) {
+
+    setError("");
 
     try {
 
-      const response =
-        await fetch(
-          `${API_BASE_URL}/security/locations`,
-          {
-            method: "GET",
-            credentials: "include"
-          }
-        );
+      const result = await removeLocation(id);
 
-      if (!response.ok) {
-        throw new Error(
-          "Unable to load locations."
-        );
-      }
-
-      const data =
-        await response.json();
-
-      setLocations(data);
-
-    } catch (error) {
-
-      console.error(error);
-
-      setError(
-        "Unable to load trusted locations."
-      );
-
-    } finally {
-
-      setLoading(false);
-    }
-  }
-
-
-  async function removeLocation(
-    latitude,
-    longitude
-  ) {
-
-    try {
-
-      const response =
-        await fetch(
-          `${API_BASE_URL}/security/locations/${latitude}/${longitude}`,
-          {
-            method: "DELETE",
-            credentials: "include"
-          }
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          "Unable to remove location."
-        );
+      if (!result.ok) {
+        throw new Error(result.data?.message);
       }
 
       setLocations(
-        locations.filter(
-          location =>
-            !(
-              location.latitude === latitude &&
-              location.longitude === longitude
-            )
+        (current) => current.filter(
+          location => location.id !== id
         )
       );
 
-    } catch (error) {
+    } catch (err) {
 
-      console.error(error);
+      console.error(err);
 
-      setError(
-        "Unable to remove location."
-      );
+      setError(err.message || "Unable to remove location.");
     }
-  }
-
-
-  useEffect(() => {
-    loadLocations();
-  }, []);
-
-
-  if (loading) {
-
-    return (
-      <section>
-
-        <h2>Trusted Locations</h2>
-
-        <p>Loading...</p>
-
-      </section>
-    );
   }
 
 
   return (
-    <section>
+    <section className="panel">
 
-      <h2>Trusted Locations</h2>
+      <div className="panel-head">
+        <span className="panel-icon"><Icon name="pin" size={18} /></span>
+        <h2>Trusted Locations</h2>
+        {!loading && <span className="count">{locations.length}</span>}
+      </div>
 
-      {error && (
-        <p>{error}</p>
-      )}
+      {error && <div className="alert error" role="alert">{error}</div>}
 
-      {locations.length === 0 ? (
-
-        <p>
-          No trusted locations found.
-        </p>
-
+      {loading ? (
+        <p className="empty">Loading…</p>
+      ) : locations.length === 0 ? (
+        <p className="empty">No trusted locations found.</p>
       ) : (
-
-        locations.map(location => (
-
-          <div key={location.id}>
-
-            <h3>
-              {location.label ||
-                "Trusted Location"}
-            </h3>
-
-            <p>
-              Latitude: {location.latitude}
-            </p>
-
-            <p>
-              Longitude: {location.longitude}
-            </p>
-
-            <p>
-              Radius: {location.radiusMeters} meters
-            </p>
-
-            <button
-              onClick={() =>
-                removeLocation(
-                  location.latitude,
-                  location.longitude
-                )
-              }
-            >
-              Remove
-            </button>
-
-          </div>
-
-        ))
+        <ul className="item-list">
+          {locations.map(location => (
+            <li className="item" key={location.id}>
+              <div className="item-body">
+                <strong>{location.label || "Trusted Location"}</strong>
+                <small>
+                  {Number(location.latitude).toFixed(4)}, {Number(location.longitude).toFixed(4)}
+                  {" · "}{Math.round(location.radiusMeters)} m radius
+                </small>
+              </div>
+              <button
+                className="btn btn-ghost btn-danger"
+                aria-label="Remove location"
+                onClick={() => handleRemove(location.id)}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
     </section>
   );
 }
+
 
 export default TrustedLocations;

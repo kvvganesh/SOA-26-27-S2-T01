@@ -1,10 +1,12 @@
 package com.adaptivemfa.acs.service;
 
 import com.adaptivemfa.acs.dto.RememberLoginTimeRequest;
+import com.adaptivemfa.acs.exception.ApiException;
 import com.adaptivemfa.acs.dto.TrustedLoginTimeRequest;
 import com.adaptivemfa.acs.model.TrustedLoginTime;
 import com.adaptivemfa.acs.repository.TrustedLoginTimeRepository;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -185,7 +187,8 @@ public class TrustedLoginTimeService {
                 endHour > 23) {
 
 
-            throw new IllegalArgumentException(
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
                     "Login hour must be between 0 and 23"
             );
         }

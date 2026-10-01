@@ -40,9 +40,7 @@ public class TrustedLoginTimeController {
 
         String username = authentication.getName();
 
-        if (!recentAuthenticationService.isMfaVerified(username)) {
-            return ResponseEntity.status(403).build();
-        }
+        recentAuthenticationService.requireRecentAuthentication(username);
 
         TrustedLoginTime time =
                 service.rememberTime(username, request);

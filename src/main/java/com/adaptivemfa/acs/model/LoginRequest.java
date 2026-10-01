@@ -16,13 +16,15 @@ public class LoginRequest {
     @NotBlank(message = "Device ID is required")
     private String deviceId;
 
-    @NotNull(message = "Latitude is required")
+    /*
+     * Location is optional: if the user denies the browser's
+     * location permission the login continues and the location is
+     * simply treated as "not trusted".
+     */
     private Double latitude;
 
-    @NotNull(message = "Longitude is required")
     private Double longitude;
 
-    @NotNull(message = "Location accuracy is required")
     private Double accuracy;
 
     @NotNull(message = "Login hour is required")

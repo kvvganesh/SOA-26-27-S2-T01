@@ -3,6 +3,7 @@ package com.adaptivemfa.acs.service;
 import com.adaptivemfa.acs.model.RiskAssessment;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
@@ -86,35 +87,78 @@ public class RiskAssessmentService {
         // 3. CALL RANDOM FOREST AI
         // =========================================
 
-        Map<String, Object> aiResponse =
-                aiService.predictRisk(
-                        failedAttempts,
-                        trustedDeviceValue,
-                        trustedLocationValue,
-                        unusualTimeValue,
-                        passwordFailed
-                );
+        /*
+         * The AI service is a separate Python process. If it is
+         * stopped, slow or returns something unexpected, login must
+         * NOT fail with HTTP 500 - we fall back to the rule engine.
+         */
+
+        String aiRisk = null;
+
+        Map<String, Double> probabilities = null;
+
+        try {
+
+            Map<String, Object> aiResponse =
+                    aiService.predictRisk(
+                            failedAttempts,
+                            trustedDeviceValue,
+                            trustedLocationValue,
+                            unusualTimeValue,
+                            passwordFailed
+                    );
 
 
-        // =========================================
-        // 4. GET AI PREDICTION
-        // =========================================
+            // =========================================
+            // 4. GET AI PREDICTION
+            // =========================================
 
-        String aiRisk =
-                (String) aiResponse.get(
-                        "predicted_risk"
-                );
+            Object predicted =
+                    aiResponse.get("predicted_risk");
+
+            if (predicted != null) {
+
+                aiRisk = predicted.toString();
+            }
 
 
-        // =========================================
-        // 5. GET AI PROBABILITIES
-        // =========================================
+            // =========================================
+            // 5. GET AI PROBABILITIES
+            // =========================================
 
-        Map<String, Double> probabilities =
-                (Map<String, Double>)
-                        aiResponse.get(
-                                "probabilities"
+            Object rawProbabilities =
+                    aiResponse.get("probabilities");
+
+            if (rawProbabilities instanceof Map<?, ?> raw) {
+
+                probabilities = new LinkedHashMap<>();
+
+                for (Map.Entry<?, ?> entry : raw.entrySet()) {
+
+                    if (entry.getKey() != null
+                            && entry.getValue() instanceof Number number) {
+
+                        probabilities.put(
+                                entry.getKey().toString(),
+                                number.doubleValue()
                         );
+                    }
+                }
+            }
+
+        } catch (RuntimeException exception) {
+
+            System.err.println(
+                    "AI risk service unavailable - using the rule "
+                            + "engine only: "
+                            + exception.getMessage()
+            );
+        }
+
+        if (aiRisk == null) {
+
+            aiRisk = "UNAVAILABLE";
+        }
 
 
         // =========================================

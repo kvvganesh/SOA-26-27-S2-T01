@@ -28,6 +28,17 @@ public class TrustedDeviceService {
     public TrustedDevice addDevice(
             TrustedDeviceRequest request) {
 
+        var existing =
+                repository.findByUsernameAndDeviceIdAndActiveTrue(
+                        request.username(),
+                        request.deviceId()
+                );
+
+        if (existing.isPresent()) {
+
+            return existing.get();
+        }
+
         TrustedDevice device =
                 new TrustedDevice(
                         request.username(),

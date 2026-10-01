@@ -41,6 +41,17 @@ public class AuthenticationSessionService {
 
 
         // ------------------------------------------
+        // Session fixation protection: give any
+        // pre-existing session a fresh id
+        // ------------------------------------------
+
+        if (request.getSession(false) != null) {
+
+            request.changeSessionId();
+        }
+
+
+        // ------------------------------------------
         // Load user from database
         // ------------------------------------------
 

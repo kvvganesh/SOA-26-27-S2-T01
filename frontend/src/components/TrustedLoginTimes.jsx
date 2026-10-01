@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import Icon from "./Icons";
 
-const API_BASE_URL =
-  "http://localhost:8081";
+import { listLoginTimes, removeLoginTime } from "../services/authService";
 
-function TrustedLoginTimes() {
+
+function TrustedLoginTimes({ refreshKey = 0 }) {
 
   const [times, setTimes] =
     useState([]);
@@ -15,148 +16,115 @@ function TrustedLoginTimes() {
     useState("");
 
 
-  async function loadTimes() {
+  useEffect(() => {
+
+    let cancelled = false;
+
+    listLoginTimes()
+      .then((result) => {
+
+        if (cancelled) return;
+
+        if (!result.ok) {
+          throw new Error(result.data?.message);
+        }
+
+        setTimes(result.data ?? []);
+        setError("");
+      })
+      .catch((err) => {
+
+        if (cancelled) return;
+
+        console.error(err);
+
+        setError(
+          err.message || "Unable to load trusted login times."
+        );
+      })
+      .finally(() => {
+
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+
+  }, [refreshKey]);
+
+
+  async function handleRemove(id) {
+
+    setError("");
 
     try {
 
-      const response =
-        await fetch(
-          `${API_BASE_URL}/security/login-times`,
-          {
-            method: "GET",
-            credentials: "include"
-          }
-        );
+      const result = await removeLoginTime(id);
 
-      if (!response.ok) {
-        throw new Error(
-          "Unable to load login times."
-        );
-      }
-
-      const data =
-        await response.json();
-
-      setTimes(data);
-
-    } catch (error) {
-
-      console.error(error);
-
-      setError(
-        "Unable to load trusted login times."
-      );
-
-    } finally {
-
-      setLoading(false);
-    }
-  }
-
-
-  async function removeTime(id) {
-
-    try {
-
-      const response =
-        await fetch(
-          `${API_BASE_URL}/security/login-times/${id}`,
-          {
-            method: "DELETE",
-            credentials: "include"
-          }
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          "Unable to remove login time."
-        );
+      if (!result.ok) {
+        throw new Error(result.data?.message);
       }
 
       setTimes(
-        times.filter(
+        (current) => current.filter(
           time => time.id !== id
         )
       );
 
-    } catch (error) {
+    } catch (err) {
 
-      console.error(error);
+      console.error(err);
 
-      setError(
-        "Unable to remove login time."
-      );
+      setError(err.message || "Unable to remove login time.");
     }
   }
 
 
-  useEffect(() => {
-    loadTimes();
-  }, []);
-
-
-  if (loading) {
-
-    return (
-      <section>
-
-        <h2>Trusted Login Times</h2>
-
-        <p>Loading...</p>
-
-      </section>
-    );
-  }
-
+  const pad = (hour) => String(hour).padStart(2, "0") + ":00";
 
   return (
-    <section>
+    <section className="panel">
 
-      <h2>Trusted Login Times</h2>
+      <div className="panel-head">
+        <span className="panel-icon"><Icon name="clock" size={18} /></span>
+        <h2>Trusted Login Times</h2>
+        {!loading && <span className="count">{times.length}</span>}
+      </div>
 
-      {error && (
-        <p>{error}</p>
-      )}
+      {error && <div className="alert error" role="alert">{error}</div>}
 
-      {times.length === 0 ? (
-
-        <p>
-          No trusted login times found.
-        </p>
-
+      {loading ? (
+        <p className="empty">Loading…</p>
+      ) : times.length === 0 ? (
+        <p className="empty">No trusted login times found.</p>
       ) : (
-
-        times.map(time => (
-
-          <div key={time.id}>
-
-            <h3>
-              Trusted Time Window
-            </h3>
-
-            <p>
-              Start: {time.startHour}:00
-            </p>
-
-            <p>
-              End: {time.endHour}:00
-            </p>
-
-            <button
-              onClick={() =>
-                removeTime(time.id)
-              }
-            >
-              Remove
-            </button>
-
-          </div>
-
-        ))
+        <ul className="item-list">
+          {times.map(time => (
+            <li className="item" key={time.id}>
+              <div className="item-body">
+                <strong>{pad(time.startHour)} – {pad(time.endHour)}</strong>
+                <small>
+                  {time.startHour > time.endHour
+                    ? "Trusted time window (overnight)"
+                    : "Trusted time window"}
+                </small>
+              </div>
+              <button
+                className="btn btn-ghost btn-danger"
+                aria-label="Remove login time"
+                onClick={() => handleRemove(time.id)}
+              >
+                <Icon name="trash" size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
     </section>
   );
 }
+
 
 export default TrustedLoginTimes;

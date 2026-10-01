@@ -2,18 +2,45 @@ package com.adaptivemfa.acs.service;
 
 import com.adaptivemfa.acs.model.TrustedLocation;
 import com.adaptivemfa.acs.repository.TrustedLocationRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-
+/**
+ * Single place that decides whether a position is "trusted".
+ *
+ * A login position is trusted when
+ *   1. the browser reported a usable fix (accuracy no worse than
+ *      {@code mfa.location.max-accuracy-meters}), and
+ *   2. it lies inside the radius of one of the user's active
+ *      trusted locations.
+ *
+ * The old rule ("accuracy must be <= the radius, i.e. <= 100 m")
+ * rejected almost every desktop / laptop fix, so a location the
+ * user had just remembered was never recognised again.
+ */
 @Service
 public class LocationRiskService {
 
+    private static final double EARTH_RADIUS_METERS = 6371000;
+
+    private static final double DEFAULT_RADIUS_METERS = 100;
+
+    private static final double MIN_RADIUS_METERS = 50;
+
     private final TrustedLocationRepository repository;
 
-    public LocationRiskService(TrustedLocationRepository repository) {
+    private final double maxAccuracyMeters;
+
+
+    public LocationRiskService(
+            TrustedLocationRepository repository,
+            @Value("${mfa.location.max-accuracy-meters:1000}")
+            double maxAccuracyMeters) {
+
         this.repository = repository;
+        this.maxAccuracyMeters = maxAccuracyMeters;
     }
+
 
     public boolean isTrustedLocation(
             String username,
@@ -21,23 +48,40 @@ public class LocationRiskService {
             Double longitude,
             Double accuracy) {
 
-        List<TrustedLocation> trustedLocations =
-                repository.findByUsernameAndActiveTrue(username);
+        /*
+         * Location was denied / unavailable on the client:
+         * it simply cannot be trusted.
+         */
+        if (latitude == null
+                || longitude == null
+                || accuracy == null) {
 
-        for (TrustedLocation trustedLocation : trustedLocations) {
+            return false;
+        }
 
-            double distance = calculateDistance(
-                    latitude,
-                    longitude,
-                    trustedLocation.getLatitude(),
-                    trustedLocation.getLongitude()
-            );
+        /*
+         * A very coarse fix (for example an IP based one) says
+         * nothing reliable about where the user really is.
+         */
+        if (accuracy > maxAccuracyMeters) {
 
-            if (distance <= trustedLocation.getRadiusMeters()) {
+            return false;
+        }
 
-                if (accuracy <= trustedLocation.getRadiusMeters()) {
-                    return true;
-                }
+        for (TrustedLocation trusted :
+                repository.findByUsernameAndActiveTrue(username)) {
+
+            double distance =
+                    distanceMeters(
+                            latitude,
+                            longitude,
+                            trusted.getLatitude(),
+                            trusted.getLongitude()
+                    );
+
+            if (distance <= trusted.getRadiusMeters()) {
+
+                return true;
             }
         }
 
@@ -45,13 +89,44 @@ public class LocationRiskService {
     }
 
 
-    private double calculateDistance(
+    public double getMaxAccuracyMeters() {
+
+        return maxAccuracyMeters;
+    }
+
+
+    /**
+     * Radius to store for a new trusted location: at least what
+     * the client asked for and at least as large as the accuracy
+     * of the fix it was taken from (otherwise normal GPS jitter
+     * would immediately fall outside the circle).
+     */
+    public double effectiveRadius(
+            Double requestedRadius,
+            Double accuracy) {
+
+        double radius =
+                requestedRadius == null
+                        ? DEFAULT_RADIUS_METERS
+                        : requestedRadius;
+
+        if (accuracy != null) {
+
+            radius = Math.max(radius, accuracy);
+        }
+
+        return Math.min(
+                Math.max(radius, MIN_RADIUS_METERS),
+                maxAccuracyMeters
+        );
+    }
+
+
+    public static double distanceMeters(
             double latitude1,
             double longitude1,
             double latitude2,
             double longitude2) {
-
-        final double EARTH_RADIUS_METERS = 6371000;
 
         double latitudeDifference =
                 Math.toRadians(latitude2 - latitude1);

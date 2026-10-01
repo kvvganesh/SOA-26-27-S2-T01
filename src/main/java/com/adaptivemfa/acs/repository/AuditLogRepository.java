@@ -23,4 +23,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findByRiskLevelAndUsername(String riskLevel, String username);
 
     List<AuditLog> findAllByOrderByTimestampDesc(Pageable pageable);
+
+    // One user's own history, newest first (Spring builds the query from the name)
+    List<AuditLog> findByUsernameOrderByTimestampDesc(String username, Pageable pageable);
 }

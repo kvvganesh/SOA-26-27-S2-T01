@@ -1,6 +1,8 @@
 package com.adaptivemfa.acs.config;
 
 import com.adaptivemfa.acs.security.CustomUserDetailsService;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -13,6 +15,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -20,12 +25,24 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService customUserDetailsService;
 
+    /*
+     * Frontend origins that may call this API with cookies.
+     * Override with:  mfa.cors.allowed-origins=http://localhost:3000
+     * (5174 is where Vite moves to when 5173 is already in use.)
+     */
+    private final String[] allowedOrigins;
+
 
     public SecurityConfig(
-            CustomUserDetailsService customUserDetailsService) {
+            CustomUserDetailsService customUserDetailsService,
+            @Value("${mfa.cors.allowed-origins:http://localhost:5173,http://localhost:5174}")
+            String[] allowedOrigins) {
 
         this.customUserDetailsService =
                 customUserDetailsService;
+
+        this.allowedOrigins =
+                allowedOrigins;
     }
 
 
@@ -73,9 +90,7 @@ public class SecurityConfig {
 
 
         configuration.setAllowedOrigins(
-                List.of(
-                        "http://localhost:5173"
-                )
+                Arrays.asList(allowedOrigins)
         );
 
 
@@ -93,7 +108,8 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(
                 List.of(
                         "Content-Type",
-                        "Authorization"
+                        "Authorization",
+                        "Accept"
                 )
         );
 
@@ -165,6 +181,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/login",
                                 "/auth/verify-mfa",
+                                "/auth/logout",
                                 "/auth/forgot-password",
                                 "/auth/reset-password",
                                 "/users/register",
@@ -215,6 +232,46 @@ public class SecurityConfig {
 
 
                 // ==================================
+                // ERROR RESPONSES
+                // ==================================
+                //
+                // Without this an expired / missing
+                // session produced an EMPTY HTTP 403,
+                // which the frontend could not explain
+                // (and could not tell apart from a
+                // permission problem).
+                //
+
+                .exceptionHandling(handling -> handling
+
+                        .authenticationEntryPoint(
+                                (request, response, exception) ->
+                                        writeError(
+                                                response,
+                                                401,
+                                                "Unauthorized",
+                                                "You are not signed in "
+                                                        + "or your session "
+                                                        + "has expired. "
+                                                        + "Please sign in again."
+                                        )
+                        )
+
+                        .accessDeniedHandler(
+                                (request, response, exception) ->
+                                        writeError(
+                                                response,
+                                                403,
+                                                "Forbidden",
+                                                "You do not have "
+                                                        + "permission to "
+                                                        + "perform this action."
+                                        )
+                        )
+                )
+
+
+                // ==================================
                 // FORM LOGIN
                 // ==================================
                 //
@@ -247,5 +304,31 @@ public class SecurityConfig {
 
 
         return http.build();
+    }
+
+
+    // ==========================================
+    // JSON ERROR BODY (same shape as ErrorResponse)
+    // ==========================================
+
+    private static void writeError(
+            HttpServletResponse response,
+            int status,
+            String error,
+            String message) throws IOException {
+
+        response.setStatus(status);
+
+        response.setContentType("application/json");
+
+        response.setCharacterEncoding(
+                StandardCharsets.UTF_8.name()
+        );
+
+        response.getWriter().write(
+                "{\"status\":\"" + status + "\","
+                        + "\"error\":\"" + error + "\","
+                        + "\"message\":\"" + message + "\"}"
+        );
     }
 }

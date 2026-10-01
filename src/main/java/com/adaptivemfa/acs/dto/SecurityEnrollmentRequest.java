@@ -1,5 +1,7 @@
 package com.adaptivemfa.acs.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -16,16 +18,16 @@ public record SecurityEnrollmentRequest(
 
         String deviceName,
 
-        @NotNull(message = "Latitude is required")
+        // Optional: the user may have denied location access.
         Double latitude,
 
-        @NotNull(message = "Longitude is required")
         Double longitude,
 
-        @NotNull(message = "Location accuracy is required")
         Double accuracy,
 
         @NotNull(message = "Login hour is required")
+        @Min(value = 0, message = "Login hour must be between 0 and 23")
+        @Max(value = 23, message = "Login hour must be between 0 and 23")
         Integer loginHour
 ) {
 }

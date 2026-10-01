@@ -133,6 +133,20 @@ public class AuditLogService {
         return auditLogRepository.findByRiskLevelAndUsername("HIGH",username);
     }
 
+    /**
+     * The signed-in user's own audit trail, newest first.
+     * The limit is clamped to 1..100 so a client can't ask for everything.
+     */
+    public List<AuditLog> getRecentLogsForUser(String username, int limit) {
+
+        int safeLimit = Math.min(Math.max(limit, 1), 100);
+
+        return auditLogRepository.findByUsernameOrderByTimestampDesc(
+                username,
+                PageRequest.of(0, safeLimit)
+        );
+    }
+
     public List<AuditLog> getRecentLogs(int limit){
        Pageable pageable= PageRequest.of(0,limit);
         return auditLogRepository.findAllByOrderByTimestampDesc(pageable);

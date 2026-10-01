@@ -44,14 +44,14 @@ public class MFAService {
     private final SecureRandom secureRandom =
             new SecureRandom();
 
-    private final OTPDeliveryService otpDeliveryService;
+    private final OtpSender otpSender;
 
 
     public MFAService(
-            OTPDeliveryService otpDeliveryService) {
+            OtpSender otpSender) {
 
-        this.otpDeliveryService =
-                otpDeliveryService;
+        this.otpSender =
+                otpSender;
     }
 
 
@@ -74,10 +74,22 @@ public class MFAService {
 
         mfaAttemptStore.put(username, 0);
 
-        otpDeliveryService.sendOtp(
-                username,
-                otp
-        );
+        try {
+
+            otpSender.send(
+                    username,
+                    otp,
+                    OtpPurpose.LOGIN
+            );
+
+        } catch (RuntimeException exception) {
+
+            // Delivery failed: don't leave a valid code that the user
+            // never received.
+            removeMfaOTP(username);
+
+            throw exception;
+        }
 
         return otp;
     }
@@ -213,10 +225,20 @@ public class MFAService {
                 0
         );
 
-        otpDeliveryService.sendOtp(
-                username,
-                otp
-        );
+        try {
+
+            otpSender.send(
+                    username,
+                    otp,
+                    OtpPurpose.PASSWORD_RESET
+            );
+
+        } catch (RuntimeException exception) {
+
+            removePasswordResetOTP(username);
+
+            throw exception;
+        }
 
         return otp;
     }

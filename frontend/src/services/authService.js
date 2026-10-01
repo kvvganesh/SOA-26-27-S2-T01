@@ -1,188 +1,113 @@
-const API_BASE_URL = "http://localhost:8081";
+import { apiRequest } from "./apiConfig";
 
 
-export async function register(registerData) {
+function post(path, body) {
 
-  const response = await fetch(
-    `${API_BASE_URL}/users/register`,
-    {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify(registerData)
-    }
-  );
-
-  const data = await response.json();
-
-  return {
-    statusCode: response.status,
-    data: data
-  };
+  return apiRequest(path, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
 }
 
 
-export async function enrollSecurity(securityData) {
+// =========================================================
+// REGISTRATION / LOGIN
+// =========================================================
 
-  const response = await fetch(
-    `${API_BASE_URL}/security/enroll`,
-    {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify(securityData)
-    }
-  );
-
-  const data = await response.text();
-
-  return {
-    statusCode: response.status,
-    data: data
-  };
+export function register(registerData) {
+  return post("/users/register", registerData);
 }
 
 
-export async function login(loginData) {
-
-  const response = await fetch(
-    `${API_BASE_URL}/auth/login`,
-    {
-      method: "POST",
-
-      credentials: "include",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify(loginData)
-    }
-  );
-
-  const data = await response.json();
-
-  return {
-    statusCode: response.status,
-    data
-  };
+export function enrollSecurity(securityData) {
+  // Success is a plain-text message, failures are JSON. apiRequest
+  // normalises both into { data: { message } }.
+  return post("/security/enroll", securityData);
 }
 
 
-export async function verifyMFA(username, otp) {
-
-  const response = await fetch(
-    `${API_BASE_URL}/auth/verify-mfa`,
-    {
-      method: "POST",
-
-      credentials: "include",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify({
-        username,
-        otp
-      })
-    }
-  );
-
-  const data = await response.json();
-
-  return {
-    statusCode: response.status,
-    data
-  };
-}
-
-export async function rememberDevice(deviceId, deviceName) {
-  const response = await fetch(
-    `${API_BASE_URL}/security/devices/remember`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        deviceId,
-        deviceName
-      })
-    }
-  );
-
-  const data = await response.json().catch(() => null);
-
-  return {
-    statusCode: response.status,
-    data
-  };
+export function login(loginData) {
+  return post("/auth/login", loginData);
 }
 
 
-export async function rememberLocation(
+export function verifyMFA(username, otp) {
+  return post("/auth/verify-mfa", { username, otp });
+}
+
+
+export function logout() {
+  return post("/auth/logout", {});
+}
+
+
+// =========================================================
+// REMEMBER (needs a recent successful sign-in)
+// =========================================================
+
+export function rememberDevice(deviceId, deviceName) {
+  return post("/security/devices/remember", { deviceId, deviceName });
+}
+
+
+export function rememberLocation(
   latitude,
   longitude,
   radiusMeters,
-  label
+  label,
+  accuracy
 ) {
-  const response = await fetch(
-    `${API_BASE_URL}/security/locations`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        latitude,
-        longitude,
-        radiusMeters,
-        label
-      })
-    }
-  );
-
-  const data = await response.json().catch(() => null);
-
-  return {
-    statusCode: response.status,
-    data
-  };
+  return post("/security/locations", {
+    latitude,
+    longitude,
+    radiusMeters,
+    label,
+    accuracy
+  });
 }
 
 
-export async function rememberLoginTime(
-  startHour,
-  endHour
-) {
-  const response = await fetch(
-    `${API_BASE_URL}/security/login-times/remember`,
-    {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        startHour,
-        endHour
-      })
-    }
+export function rememberLoginTime(startHour, endHour) {
+  return post("/security/login-times/remember", { startHour, endHour });
+}
+
+
+// =========================================================
+// LIST / REMOVE
+// =========================================================
+
+export function listDevices() {
+  return apiRequest("/security/devices");
+}
+
+export function removeDevice(deviceId) {
+  return apiRequest(
+    `/security/devices/${encodeURIComponent(deviceId)}`,
+    { method: "DELETE" }
   );
+}
 
-  const data = await response.json().catch(() => null);
 
-  return {
-    statusCode: response.status,
-    data
-  };
+export function listLocations() {
+  return apiRequest("/security/locations");
+}
+
+// Locations are removed by their id (not by coordinates).
+export function removeLocation(id) {
+  return apiRequest(`/security/locations/${id}`, { method: "DELETE" });
+}
+
+
+// The signed-in user's OWN audit trail (newest first, max 100).
+export function listMyAuditLogs(limit = 50) {
+  return apiRequest(`/security/my-audit-logs?limit=${limit}`);
+}
+
+
+export function listLoginTimes() {
+  return apiRequest("/security/login-times");
+}
+
+export function removeLoginTime(id) {
+  return apiRequest(`/security/login-times/${id}`, { method: "DELETE" });
 }

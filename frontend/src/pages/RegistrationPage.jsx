@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+import AuthLayout from "../components/AuthLayout";
+import Icon from "../components/Icons";
+
 import {
   register,
   enrollSecurity
@@ -15,13 +18,15 @@ import {
 } from "../services/locationService";
 
 
-function RegistrationPage({ onRegistrationComplete }) {
+function RegistrationPage({ onRegistrationComplete, onBackToLogin }) {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   async function handleRegistration(event) {
 
@@ -47,6 +52,13 @@ function RegistrationPage({ onRegistrationComplete }) {
         return;
       }
 
+      // One-time passwords are e-mailed to this address, so it must be real.
+      // (The backend validates it again - never rely on the browser alone.)
+      if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+        setError("Enter a valid email address");
+        return;
+      }
+
 
       // =========================================
       // REGISTER USER
@@ -55,7 +67,8 @@ function RegistrationPage({ onRegistrationComplete }) {
       const registrationResult =
         await register({
           username: username,
-          password: password
+          password: password,
+          email: email.trim()
         });
 
 
@@ -93,8 +106,22 @@ function RegistrationPage({ onRegistrationComplete }) {
       // GET LOCATION
       // =========================================
 
-      const location =
-        await getCurrentLocation();
+      // Location is optional: without it the device and login time are
+      // still enrolled and the location can be remembered after sign-in.
+      let location = null;
+
+      try {
+
+        location =
+          await getCurrentLocation();
+
+      } catch (locationProblem) {
+
+        console.warn(
+          "Location unavailable:",
+          locationProblem
+        );
+      }
 
 
       // =========================================
@@ -121,13 +148,13 @@ function RegistrationPage({ onRegistrationComplete }) {
           `${deviceInfo.platform} Browser`,
 
         latitude:
-          location.latitude,
+          location?.latitude ?? null,
 
         longitude:
-          location.longitude,
+          location?.longitude ?? null,
 
         accuracy:
-          location.accuracy,
+          location?.accuracy ?? null,
 
         loginHour:
           loginHour
@@ -158,7 +185,9 @@ function RegistrationPage({ onRegistrationComplete }) {
       ) {
 
         setError(
-          "Account created, but security enrollment failed. Please contact support."
+          enrollmentResult.data?.message
+            ? `Account created, but security enrollment failed: ${enrollmentResult.data.message}`
+            : "Account created, but security enrollment failed. Please contact support."
         );
 
         return;
@@ -169,14 +198,14 @@ function RegistrationPage({ onRegistrationComplete }) {
       // COMPLETE
       // =========================================
 
-      alert(
+      setSuccess(
+        enrollmentResult.data?.message ||
         "Registration and security setup completed successfully."
       );
 
-
       if (onRegistrationComplete) {
 
-        onRegistrationComplete();
+        setTimeout(onRegistrationComplete, location ? 1500 : 3500);
 
       }
 
@@ -191,7 +220,7 @@ function RegistrationPage({ onRegistrationComplete }) {
 
 
       setError(
-        "Unable to complete registration. Please check location permission and backend connection."
+        "Unable to reach the server. Please check that the backend is running."
       );
 
     }
@@ -207,78 +236,101 @@ function RegistrationPage({ onRegistrationComplete }) {
 
   return (
 
-    <div>
-
-      <h1>Create Account</h1>
-
-      <p>
-        Your device, location and login-time
-        information will be securely enrolled
-        for adaptive authentication.
-      </p>
-
+    <AuthLayout
+      title="Create your account"
+      subtitle="Your device, location and login-time information will be securely enrolled for adaptive authentication."
+      footer={
+        onBackToLogin && (
+          <>
+            Already registered?{" "}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={onBackToLogin}
+            >
+              Back to login
+            </button>
+          </>
+        )
+      }
+    >
 
       {error && (
-
-        <p>
+        <div className="alert error" role="alert">
+          <Icon name="alert" size={16} />
           {error}
-        </p>
-
+        </div>
       )}
 
+      {success && (
+        <div className="alert success" role="status">
+          <Icon name="check" size={16} />
+          {success}
+        </div>
+      )}
 
-      <form onSubmit={handleRegistration}>
+      <form className="form" onSubmit={handleRegistration}>
 
-        <div>
-
-          <label>
-            Username
-          </label>
-
+        <div className="field">
+          <label htmlFor="reg-username">Username</label>
           <input
+            id="reg-username"
             type="text"
-            placeholder="Enter username"
+            autoComplete="username"
+            placeholder="Choose a username"
             value={username}
             onChange={(event) =>
               setUsername(event.target.value)
             }
           />
-
         </div>
 
-
-        <div>
-
-          <label>
-            Password
-          </label>
-
+        <div className="field">
+          <label htmlFor="reg-email">Email</label>
           <input
+            id="reg-email"
+            type="email"
+            autoComplete="email"
+            placeholder="Where should we send your one-time codes?"
+            value={email}
+            onChange={(event) =>
+              setEmail(event.target.value)
+            }
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="reg-password">Password</label>
+          <input
+            id="reg-password"
             type="password"
-            placeholder="Enter password"
+            autoComplete="new-password"
+            placeholder="Create a password"
             value={password}
             onChange={(event) =>
               setPassword(event.target.value)
             }
           />
-
         </div>
 
-
         <button
+          className="btn btn-primary btn-block"
           type="submit"
-          disabled={loading}
+          disabled={loading || !!success}
         >
-
           {loading
-            ? "Creating account..."
-            : "Create Account"}
-
+            ? <><span className="spinner" /> Creating account…</>
+            : "Create account"}
         </button>
 
       </form>
 
-    </div>
+      <p className="hint center">
+        <Icon name="pin" size={14} /> We'll ask for location permission to
+        enroll this device.
+      </p>
+
+    </AuthLayout>
 
   );
 

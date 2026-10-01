@@ -1,10 +1,13 @@
 package com.adaptivemfa.acs.service;
 
+import com.adaptivemfa.acs.exception.ApiException;
+import com.adaptivemfa.acs.exception.UserAlreadyExistsException;
 import com.adaptivemfa.acs.model.AccountSecurity;
 import com.adaptivemfa.acs.model.User;
 import com.adaptivemfa.acs.repository.AccountSecurityRepository;
 import com.adaptivemfa.acs.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -44,12 +47,13 @@ public class UserService {
     @Transactional
     public void createUser(
             String username,
-            String password) {
+            String password,
+            String email) {
 
         if (userRepository.existsById(username)) {
 
-            throw new RuntimeException(
-                    "Username already exists"
+            throw new UserAlreadyExistsException(
+                    "Username already exists!"
             );
         }
 
@@ -65,6 +69,10 @@ public class UserService {
         );
 
         user.setRole("USER");
+
+        user.setEmail(
+                email == null ? null : email.trim()
+        );
 
         userRepository.save(user);
 
@@ -128,7 +136,8 @@ public class UserService {
         User user =
                 userRepository.findById(username)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new ApiException(
+                                        HttpStatus.NOT_FOUND,
                                         "User not found"
                                 )
                         );
@@ -138,7 +147,8 @@ public class UserService {
                 currentPassword,
                 user.getPassword())) {
 
-            throw new RuntimeException(
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
                     "Current password is incorrect"
             );
         }
@@ -174,8 +184,25 @@ public class UserService {
     public void generatePasswordResetOtp(String username) {
 
         if (userRepository.existsById(username)) {
-            mfaService.generatePasswordResetOtp(username);
 
+            /*
+             * The API answers "if the account exists, instructions were
+             * sent" no matter what. So a delivery problem (no e-mail on
+             * file, mail server down) must NOT change the response,
+             * otherwise an attacker could tell which usernames exist.
+             */
+            try {
+
+                mfaService.generatePasswordResetOtp(username);
+
+            } catch (ApiException exception) {
+
+                System.err.println(
+                        "Password reset OTP was not delivered for "
+                                + username + ": "
+                                + exception.getMessage()
+                );
+            }
         }
 
     }
@@ -204,7 +231,8 @@ public class UserService {
 
         if (!verified) {
 
-            throw new RuntimeException(
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
                     "Invalid OTP or expired OTP"
             );
         }
@@ -213,8 +241,9 @@ public class UserService {
         User user =
                 userRepository.findById(username)
                         .orElseThrow(() ->
-                                new RuntimeException(
-                                        "User not found"
+                                new ApiException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Invalid OTP or expired OTP"
                                 )
                         );
 
@@ -252,8 +281,8 @@ public class UserService {
 
         if (userRepository.existsById(username)) {
 
-            throw new RuntimeException(
-                    "Username already exists"
+            throw new UserAlreadyExistsException(
+                    "Username already exists!"
             );
         }
 

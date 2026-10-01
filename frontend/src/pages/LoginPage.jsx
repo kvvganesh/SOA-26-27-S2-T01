@@ -2,18 +2,21 @@ import { useState } from "react";
 
 import LoginForm from "../components/LoginForm";
 import MFAVerification from "../components/MFAVerification";
+import AuthLayout from "../components/AuthLayout";
+import Icon from "../components/Icons";
 import SecurityDashboard from "../components/SecurityDashboard";
 
 import {
   login,
-  verifyMFA
+  verifyMFA,
+  logout
 } from "../services/authService";
 
 import { getDeviceId } from "../services/deviceService";
 import { getCurrentLocation } from "../services/locationService";
 
 
-function LoginPage({ title }) {
+function LoginPage({ title, onCreateAccount }) {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -68,8 +71,28 @@ function LoginPage({ title }) {
       // LOCATION
       // -------------------------------------------------
 
-      const location =
-        await getCurrentLocation();
+      // Location is optional: if it is denied / unavailable we still
+      // sign in (the location is then simply "not trusted") instead of
+      // blocking the whole login like before.
+      let location = null;
+      let locationError = "";
+
+      try {
+
+        location =
+          await getCurrentLocation();
+
+      } catch (locationProblem) {
+
+        console.warn(
+          "Location unavailable:",
+          locationProblem
+        );
+
+        locationError =
+          locationProblem.message ||
+          "Location was not available for this sign-in.";
+      }
 
 
       // -------------------------------------------------
@@ -89,13 +112,15 @@ function LoginPage({ title }) {
         deviceId,
 
         latitude:
-          location.latitude,
+          location?.latitude ?? null,
 
         longitude:
-          location.longitude,
+          location?.longitude ?? null,
 
         accuracy:
-          location.accuracy,
+          location?.accuracy ?? null,
+
+        locationError,
 
         loginHour
       };
@@ -116,13 +141,13 @@ function LoginPage({ title }) {
         deviceId,
 
         latitude:
-          location.latitude,
+          context.latitude,
 
         longitude:
-          location.longitude,
+          context.longitude,
 
         accuracy:
-          location.accuracy,
+          context.accuracy,
 
         loginHour
       };
@@ -144,8 +169,11 @@ function LoginPage({ title }) {
       );
 
 
+      const data =
+        result.data || {};
+
       setLoginResponse(
-        result.data
+        data
       );
 
 
@@ -154,7 +182,7 @@ function LoginPage({ title }) {
       // -------------------------------------------------
 
       if (
-        result.data.status ===
+        data.status ===
         "MFA_REQUIRED"
       ) {
 
@@ -169,7 +197,7 @@ function LoginPage({ title }) {
       // -------------------------------------------------
 
       if (
-        result.data.status ===
+        data.status ===
         "AUTHENTICATED"
       ) {
 
@@ -184,7 +212,7 @@ function LoginPage({ title }) {
       // -------------------------------------------------
 
       setError(
-        result.data.message ||
+        data.message ||
         "Login failed"
       );
 
@@ -195,8 +223,10 @@ function LoginPage({ title }) {
         error
       );
 
+      // Location problems are handled above, so reaching this
+      // point means the request itself failed.
       setError(
-        "Unable to detect location or connect to backend."
+        "Unable to reach the server. Please check that the backend is running."
       );
 
     } finally {
@@ -229,9 +259,8 @@ function LoginPage({ title }) {
       );
 
 
-      setLoginResponse(
-        result.data
-      );
+      const data =
+        result.data || {};
 
 
       // -------------------------------------------------
@@ -239,9 +268,19 @@ function LoginPage({ title }) {
       // -------------------------------------------------
 
       if (
-        result.data.status ===
+        data.status ===
         "AUTHENTICATED"
       ) {
+
+        // The MFA response only carries the suggestions. Keep the risk
+        // score / AI result / risk level from the original login so the
+        // dashboard doesn't show "0" and "N/A" after a challenge.
+        setLoginResponse((previous) => ({
+          ...previous,
+          status: data.status,
+          message: data.message,
+          securitySuggestions: data.securitySuggestions
+        }));
 
         setMfaRequired(false);
 
@@ -256,7 +295,7 @@ function LoginPage({ title }) {
       // -------------------------------------------------
 
       setError(
-        result.data.message ||
+        data.message ||
         "Invalid or expired OTP"
       );
 
@@ -271,6 +310,31 @@ function LoginPage({ title }) {
         "Unable to verify OTP"
       );
     }
+  }
+
+
+  // =====================================================
+  // LOGOUT
+  // =====================================================
+
+  async function handleLogout() {
+
+    try {
+
+      await logout();
+
+    } catch (error) {
+
+      // Even if the server can't be reached, leave the dashboard.
+      console.error("Logout failed:", error);
+    }
+
+    setAuthenticated(false);
+    setMfaRequired(false);
+    setLoginResponse(null);
+    setSecurityContext(null);
+    setPassword("");
+    setError("");
   }
 
 
@@ -290,6 +354,10 @@ function LoginPage({ title }) {
 
         loginContext={
           securityContext
+        }
+
+        onLogout={
+          handleLogout
         }
 
       />
@@ -333,58 +401,47 @@ function LoginPage({ title }) {
 
   return (
 
-    <div>
-
-      <h1>
-        {title}
-      </h1>
-
-      <h2>
-        Secure Login
-      </h2>
-
+    <AuthLayout
+      title="Welcome back"
+      subtitle={`Sign in to ${title || "your account"} securely.`}
+      footer={
+        onCreateAccount && (
+          <>
+            New here?{" "}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={onCreateAccount}
+            >
+              Create an account
+            </button>
+          </>
+        )
+      }
+    >
 
       {error && (
-        <p>
+        <div className="alert error" role="alert">
+          <Icon name="alert" size={16} />
           {error}
-        </p>
+        </div>
       )}
-
 
       <LoginForm
-
-        username={
-          username
-        }
-
-        setUsername={
-          setUsername
-        }
-
-        password={
-          password
-        }
-
-        setPassword={
-          setPassword
-        }
-
-        onLogin={
-          handleLogin
-        }
-
+        username={username}
+        setUsername={setUsername}
+        password={password}
+        setPassword={setPassword}
+        onLogin={handleLogin}
+        loading={loading}
       />
 
+      <p className="hint center">
+        <Icon name="pin" size={14} /> Device, location and login time are
+        checked automatically to assess risk.
+      </p>
 
-      {loading && (
-
-        <p>
-          Detecting security information...
-        </p>
-
-      )}
-
-    </div>
+    </AuthLayout>
   );
 }
 
